@@ -1,0 +1,27 @@
+import pygame
+import copy
+
+vec = pygame.math.Vector2
+
+SIMULATION_FPS = 60
+SIMULATION_TIME_STEP = 1/SIMULATION_FPS
+
+DRONE_SIZE = vec(40,40) # unit
+DRONE_ACCELERATION = 200 # unit/s/s
+DRONE_COLOR = (167, 194, 32)
+
+# lidar sensor
+NB_LIDAR_ANGLES = 200
+MAX_LIDAR_DISTANCE = 200
+
+LIDAR_POINT_COLOR = (0,0,255)
+LIDAR_POINT_RADIUS = 3
+
+# inertial unit sensor
+IU_FREQUENCY = 50 # hZ -> number of measures per second
+IU_NOISE = 0.1
+IU_PREDICTION_COLOR = (255,0,0)
+
+IU_ARROW_WIDTH = 10
+IU_ARROW_LENGTH_MULTIPLIER = 5
+IU_ARROWS_COLOR = (100,0,0)
