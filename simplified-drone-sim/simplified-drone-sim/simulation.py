@@ -11,7 +11,7 @@ FramePerSec = pygame.time.Clock()
 class Simulation:
     def __init__(self):
         pygame.init()
-        self.window = pygame.display.set_mode((640, 480))
+        self.window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         self.what_drone_sees_mode = False
         self.show_estimated_position = False
         self.reset_sim()

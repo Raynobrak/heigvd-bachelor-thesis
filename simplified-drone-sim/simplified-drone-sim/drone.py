@@ -14,6 +14,10 @@ class Drone:
 
         self.velocity += direction * DRONE_ACCELERATION * dt
 
+    def set_velocity(self, vel):
+        # todo : idée -> émuler un PID pour atteindre la vitesse désirée
+        self.velocity = vel
+
     def get_center_position(self):
         return self.position + DRONE_SIZE / 2
 
@@ -21,6 +25,12 @@ class Drone:
         self.position += self.velocity * dt
         
         self.inertial_unit.try_update_sensor(self.velocity, dt)
+
+    def get_rect(self):
+        return pygame.Rect(self.position.x, self.position.y, DRONE_SIZE.x, DRONE_SIZE.y)
+
+    def collides_with(self, wall):
+        return self.get_rect().colliderect(wall.rect)
 
     def read_accelerometer_value(self):
         return self.inertial_unit.read_sensor_acceleration()
