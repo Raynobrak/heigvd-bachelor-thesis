@@ -7,7 +7,9 @@ Pilotage de drones basé sur de l'apprentissage par renforcement
 1. Télécharger (ou cloner) le code source
 2. Installer Poetry (https://python-poetry.org/docs/#installing-with-the-official-installer)
 3. Installer les dépendances : `poetry install --no-root`
-4. Exécuter le programme (depuis le dossier contenant le .toml) : `poetry run python simplified-drone-sim/main.py`
+4. S'assurer que la création de venv est activée : `poetry config virtualenvs.create true --local`
+5. `poetry shell`
+6. Exécuter le programme (depuis le dossier contenant le .toml) : `poetry run python simplified-drone-sim/main.py`
 
 ### Programme
 
