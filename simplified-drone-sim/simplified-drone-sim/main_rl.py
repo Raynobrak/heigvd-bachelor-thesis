@@ -1,5 +1,6 @@
 from src.simulation import *
 from src.DroneEnvironment import *
+from datetime import datetime
 
 import os
 
@@ -8,104 +9,49 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 from stable_baselines3 import DQN, A2C, PPO
 
-mode = 'learn'
-print('test')
+MODEL_FILENAME = 'models/PPO_15-06-16h22m19s' # = None to start a new model from scratch
+SAVE_PREFIX = 'PPO'
+TIMESTEPS_PER_EPOCH = 20000 # number of steps between each visualisation
+EPISODES_PER_VIS = 5 # number of episodes to visualize after training
 
-if mode == 'env':
-    env = DroneEnvironment(render_mode="human")
-    obs = env.reset()
+training_env = DroneEnvironment(render_mode=None)
 
-    for step in range(10000):
-        #action = env.action_space.sample()  # Action aléatoire
-        action = vec(0,0)
-        obs, reward, done, _, info = env.step(action)
+model = None
+if MODEL_FILENAME is not None:
+    model = model = PPO.load(MODEL_FILENAME, env=training_env)
+else:
+    model = PPO("MlpPolicy", training_env, verbose=1)
 
-        env.render()  # Affiche l’état (position, vitesse, etc.)
+while True:
+    # entraînement
+    print(f"Training model for {TIMESTEPS_PER_EPOCH} steps...")
+    model.learn(total_timesteps=TIMESTEPS_PER_EPOCH, progress_bar=True)
 
-        if done:
-            print("Épisode terminé.")
+    # sauvegarde du modèle
+    filename = 'models/' + SAVE_PREFIX + '_' + datetime.now().strftime("%d-%m-%Hh%Mm%Ss")
+    model.save(filename)
+    print(f"Model saved : {filename}")
+
+    # visualisation
+    eval_env = DroneEnvironment(render_mode="human")
+
+    for episode in range(EPISODES_PER_VIS):
+        print(f"Visualization of episode {episode+1}/{EPISODES_PER_VIS}")
+
+        obs, _ = eval_env.reset()
+        done = False
+        total_reward = 0
+
+        while not done:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, done, _, _ = eval_env.step(action)
+            if eval_env.has_user_quit():
+                break
+            total_reward += reward
+            eval_env.render()
+        if eval_env.has_user_quit():
             break
 
-    env.close()
-elif mode == 'learn':
-    env = DroneEnvironment(render_mode=None)
+        print(f"Total reward : {total_reward}")
 
-    model = A2C(
-        "MlpPolicy",
-        env,
-        verbose=1,
-        ent_coef=0.02,
-        n_steps=16,
-        #tensorboard_log="./logs/" todo : remove
-        )
-    
-    model = PPO(
-        "MlpPolicy", env
-    )
-    
-    while True:
-
-        model.learn(total_timesteps=10000)
-
-        for i in range(500000):
-            env_visu = DroneEnvironment(render_mode="human")
-            obs, _ = env_visu.reset()
-
-            sum = 0
-            done = False
-            while not done:
-                action, _ = model.predict(obs, deterministic=True)
-                obs, reward, done, _, info = env_visu.step(action)
-                sum += reward
-                env_visu.render()
-            print('total reward :', sum)
-
-            env_visu.close()
-elif mode=='learn+':
-    # ======== CONFIGURATION ========
-    LOAD_MODEL = True
-    MODEL_PATH = "ppo_drone_model.zip"
-    TRAIN_STEPS = 20000
-    EVAL_EPISODES = 50000
-    # ===============================
-
-    # Entraînement : sans affichage pour aller vite
-    env_train = DroneEnvironment(render_mode=None)
-
-    # Chargement ou création du modèle
-    if LOAD_MODEL and os.path.exists(MODEL_PATH):
-        print("🔄 Chargement du modèle existant...")
-        model = PPO.load(MODEL_PATH, env=env_train)
-    else:
-        print("🆕 Création d’un nouveau modèle...")
-        model = PPO("MlpPolicy", env_train, verbose=1)
-
-    while True:
-        # Apprentissage
-        print("🚀 Entraînement...")
-        model.learn(total_timesteps=TRAIN_STEPS)
-
-        # Sauvegarde du modèle après chaque session
-        model.save(MODEL_PATH)
-        print(f"💾 Modèle sauvegardé dans {MODEL_PATH}")
-
-        # Évaluation visuelle
-        print("🎮 Évaluation visuelle...")
-        for episode in range(EVAL_EPISODES):
-            env_eval = DroneEnvironment(render_mode="human")
-            obs, _ = env_eval.reset()
-            done = False
-            total_reward = 0
-
-            while not done:
-                action, _ = model.predict(obs, deterministic=True)
-                obs, reward, done, _, _ = env_eval.step(action)
-                if env_eval.has_user_quit():
-                    break
-                total_reward += reward
-                env_eval.render()
-            if env_eval.has_user_quit():
-                break
-
-            print(f"🏁 Reward de l’épisode {episode + 1}: {total_reward}")
-            env_eval.close()
+    eval_env.close()
