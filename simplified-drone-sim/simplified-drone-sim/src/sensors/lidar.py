@@ -12,7 +12,7 @@ def emulate_lidar(sensor_global_pos, obstacles):
 
     data = list()
 
-    LIDAR_STEP = 2
+    LIDAR_STEP = 5
 
     for i in range(NB_LIDAR_ANGLES):
         current_angle_rad = np.radians(i * 360 / NB_LIDAR_ANGLES)
@@ -36,9 +36,6 @@ def emulate_lidar(sensor_global_pos, obstacles):
             data.append(distance)
         else:
             data.append(MAX_LIDAR_DISTANCE)
-
-    assert(len(data) == NB_LIDAR_ANGLES)
-
     return data
 
 def lidar_data_to_points(data, sensor_pos_global):

@@ -9,6 +9,7 @@ from src.drone import Drone
 from src.wall import *
 
 HUMAN_RENDERMODE = 'human'
+MIN_MAX_SPEED = 50
 
 class DroneEnvironment(gym.Env):
     def __init__(self, render_mode):
@@ -24,8 +25,8 @@ class DroneEnvironment(gym.Env):
 
         # action space
         self.action_space = spaces.Box(
-            low=-150.0,
-            high=150.0,
+            low=-MIN_MAX_SPEED,
+            high=MIN_MAX_SPEED,
             shape=(2,),
             dtype=np.float32,
         )
@@ -47,11 +48,16 @@ class DroneEnvironment(gym.Env):
         # Réinitialiser la map, obstacles, etc.
         self._reset_environment()
 
+        self.previous_x = self.drone.get_center_position().x
+
         self.terminate = False
         self.elapsed_time = 0
         self.quit = False
 
         return self._get_observation(), {}
+    
+    def close(self):
+        pygame.quit()
 
     def step(self, action):
         vel = vec(*action) * 50
@@ -67,7 +73,6 @@ class DroneEnvironment(gym.Env):
             # punctal events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    pygame.quit()
                     self.quit = True
 
         # observation et reward pour l'état actuel
@@ -86,24 +91,21 @@ class DroneEnvironment(gym.Env):
         return np.array(data)
 
     def _compute_reward(self):
-        # reward negatif si le drone tape un obstacle
+        # punir l'agent si il collisionne un mur
         for w in self.walls:
             if self.drone.collides_with(w):
                 self.terminate = True
                 return -200
-            
-        distance_travelled = self.drone.get_rect().right
 
-        """
-        if distance_travelled > WINDOW_WIDTH:
+        # encourager d'atteindre le mur de droite dans un temps minimal
+        if self.drone.get_rect().right >= WINDOW_WIDTH:
             self.terminate = True
-            # reward pour avoir atteint la ligne d'arrivée
-            # plus le drone est arrivé vite, plus le reward est grand
-            return 400 / self.elapsed_time
-        """
+            return 400 / self.elapsed_time  # encourage d'arriver vite
 
-        #return -1 #todo find better reward fctn
-        return 100 * distance_travelled / (WINDOW_WIDTH - DRONE_SIZE.x)
+        # encourager le déplacement vers la droite
+        delta = self.drone.get_center_position().x - self.previous_x
+        self.previous_x = self.drone.get_center_position().x
+        return delta * 10 - 1
 
     def _check_termination(self):
         return self.terminate or self.elapsed_time > MAX_SIMULATION_TIME
