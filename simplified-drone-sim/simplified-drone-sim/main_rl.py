@@ -8,50 +8,60 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 from stable_baselines3 import DQN, A2C, PPO
+from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
+from src.training.VisualizeSimplifiedSimulationCallback import VisualizeSimplifiedSimulationCallback
+from stable_baselines3.common.callbacks import CallbackList
+from stable_baselines3.common.monitor import Monitor
 
-MODEL_FILENAME = 'models/PPO_15-06-16h22m19s' # = None to start a new model from scratch
-SAVE_PREFIX = 'PPO'
-TIMESTEPS_PER_EPOCH = 20000 # number of steps between each visualisation
+MODELS_FOLDER = './models/'
+MODEL_FILENAME = MODELS_FOLDER + 'PPO_final_1hour_training' # = None to start a new model from scratch
+#MODEL_FILENAME = None
+SAVE_PREFIX = 'ppo2'
+TIMESTEPS_PER_EPOCH = 1000 # number of steps between each visualisation
 EPISODES_PER_VIS = 5 # number of episodes to visualize after training
+
+checkpoint_callback = CheckpointCallback(
+  save_freq=TIMESTEPS_PER_EPOCH,
+  save_path=MODELS_FOLDER,
+  name_prefix=SAVE_PREFIX,
+  save_replay_buffer=True,
+  save_vecnormalize=True,
+)
+
+stop_training_callback = StopTrainingOnNoModelImprovement(
+    max_no_improvement_evals=5
+)
+
+# wrap de l'environnement d'évaluation avec un Monitor pour que les rewards soits corrects
+eval_env = Monitor(DroneEnvironment(render_mode=None))
+eval_callback = EvalCallback(
+    eval_freq=TIMESTEPS_PER_EPOCH,
+    n_eval_episodes=EPISODES_PER_VIS,
+    eval_env=eval_env,
+    callback_after_eval=stop_training_callback
+)
+
+visualization_callback = VisualizeSimplifiedSimulationCallback(
+    visualization_freq=TIMESTEPS_PER_EPOCH,
+    visualization_episodes=EPISODES_PER_VIS
+)
+
+callbacks = CallbackList(
+    callbacks=[checkpoint_callback, eval_callback, visualization_callback]
+)
+# todo : remettre le callback d'evaluation pour sauvegarder le meilleur modèle régulièrement
 
 training_env = DroneEnvironment(render_mode=None)
 
 model = None
 if MODEL_FILENAME is not None:
-    model = model = PPO.load(MODEL_FILENAME, env=training_env)
+    model = PPO.load(MODEL_FILENAME, env=training_env)
 else:
-    model = PPO("MlpPolicy", training_env, verbose=1)
+    model = PPO("MlpPolicy", env=training_env, verbose=1)
 
 while True:
     # entraînement
     print(f"Training model for {TIMESTEPS_PER_EPOCH} steps...")
-    model.learn(total_timesteps=TIMESTEPS_PER_EPOCH, progress_bar=True)
-
-    # sauvegarde du modèle
-    filename = 'models/' + SAVE_PREFIX + '_' + datetime.now().strftime("%d-%m-%Hh%Mm%Ss")
-    model.save(filename)
-    print(f"Model saved : {filename}")
-
-    # visualisation
-    eval_env = DroneEnvironment(render_mode="human")
-
-    for episode in range(EPISODES_PER_VIS):
-        print(f"Visualization of episode {episode+1}/{EPISODES_PER_VIS}")
-
-        obs, _ = eval_env.reset()
-        done = False
-        total_reward = 0
-
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, _, _ = eval_env.step(action)
-            if eval_env.has_user_quit():
-                break
-            total_reward += reward
-            eval_env.render()
-        if eval_env.has_user_quit():
-            break
-
-        print(f"Total reward : {total_reward}")
-
-    eval_env.close()
+    model.learn(total_timesteps=TIMESTEPS_PER_EPOCH, progress_bar=True, callback=callbacks)

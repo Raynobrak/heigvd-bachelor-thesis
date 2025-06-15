@@ -12,7 +12,7 @@ def emulate_lidar(sensor_global_pos, obstacles):
 
     data = list()
 
-    LIDAR_STEP = 5
+    LIDAR_STEP = 4
 
     for i in range(NB_LIDAR_ANGLES):
         current_angle_rad = np.radians(i * 360 / NB_LIDAR_ANGLES)

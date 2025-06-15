@@ -10,16 +10,20 @@ from src.wall import *
 
 HUMAN_RENDERMODE = 'human'
 MIN_MAX_SPEED = 50
+OBSTACLES_COUNT = 10
 
 class DroneEnvironment(gym.Env):
-    def __init__(self, render_mode):
+    def __init__(self, render_mode, fixed_obstacles_positions=False, seed=None):
         super().__init__()
+
+        self.fixed_obstacles_positions = fixed_obstacles_positions
+        self.seed = seed
 
         # observation space
         self.observation_space = spaces.Box(
             low=0.0,
             high=MAX_LIDAR_DISTANCE,
-            shape=(NB_LIDAR_ANGLES,),  # 8 distances
+            shape=(NB_LIDAR_ANGLES,),
             dtype=np.float32,
         )
 
@@ -34,27 +38,47 @@ class DroneEnvironment(gym.Env):
         self.render_mode = render_mode
         if self.render_mode == HUMAN_RENDERMODE:
             self.fps = pygame.time.Clock()
-
             pygame.init()
             self.window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 
+        if self.fixed_obstacles_positions:
+            self.generate_obstacles()
         self.reset()
 
     def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
+        super().reset(seed=self.seed, options=options)
 
-        self.drone = Drone(vec((DRONE_SIZE.x + 100) / 2, (WINDOW_HEIGHT + DRONE_SIZE.y) / 2))
-
-        # Réinitialiser la map, obstacles, etc.
         self._reset_environment()
 
-        self.previous_x = self.drone.get_center_position().x
+        if not self.fixed_obstacles_positions:
+            self.generate_obstacles()
 
+        return self._get_observation(), {}
+    
+    def _reset_environment(self):
+        self.drone = Drone(vec((DRONE_SIZE.x + 100) / 2, (WINDOW_HEIGHT + DRONE_SIZE.y) / 2))
+        self.previous_x = self.drone.get_center_position().x
         self.terminate = False
         self.elapsed_time = 0
         self.quit = False
 
-        return self._get_observation(), {}
+    def generate_obstacles(self):        
+        self.walls = []
+
+        # todo : mettre des constantes au lieu de nombres "magiques"
+        self.walls.append(Wall(vec(-50,-50), vec(50, 50 + WINDOW_HEIGHT + 50)))
+        self.walls.append(Wall(vec(-50,-50), vec(50 + WINDOW_WIDTH + 50, 50)))
+        self.walls.append(Wall(vec(-50, WINDOW_HEIGHT), vec(50 + WINDOW_WIDTH + 50, 50)))
+
+        # todo : fix ce problem de seed et trouver une bonne solution pour générer ou non un environnement aléatoire
+        rng = np.random.default_rng(seed=self.seed)
+    
+        for i in range(OBSTACLES_COUNT):
+            MIN_OBST_SIZE = 40
+            MAX_OBST_SIZE = 50
+            pos = vec(rng.integers(150, WINDOW_WIDTH - MAX_OBST_SIZE), rng.integers(0, WINDOW_HEIGHT - MAX_OBST_SIZE))
+            size = rng.integers(MIN_OBST_SIZE, MAX_OBST_SIZE)
+            self.walls.append(Wall(pos, vec(size,size)))
     
     def close(self):
         pygame.quit()
@@ -109,20 +133,6 @@ class DroneEnvironment(gym.Env):
 
     def _check_termination(self):
         return self.terminate or self.elapsed_time > MAX_SIMULATION_TIME
-
-    def _reset_environment(self):
-        self.walls = []
-
-        self.walls.append(Wall(vec(-50,-50), vec(50, 50 + WINDOW_HEIGHT + 50)))
-        self.walls.append(Wall(vec(-50,-50), vec(50 + WINDOW_WIDTH + 50, 50)))
-        self.walls.append(Wall(vec(-50, WINDOW_HEIGHT), vec(50 + WINDOW_WIDTH + 50, 50)))
-
-        for i in range(10):
-            MIN_OBST_SIZE = 40
-            MAX_OBST_SIZE = 50
-            pos = vec(np.random.randint(150, WINDOW_WIDTH - MAX_OBST_SIZE), np.random.randint(0, WINDOW_HEIGHT - MAX_OBST_SIZE))
-            size = np.random.randint(MIN_OBST_SIZE, MAX_OBST_SIZE)
-            self.walls.append(Wall(pos, vec(size,size)))
 
     def has_user_quit(self):
         return self.quit
