@@ -3,10 +3,10 @@ from gymnasium import spaces
 
 import numpy as np
 
-from utils import *
-from sensors.lidar import *
-from drone import Drone
-from wall import *
+from src.constants import *
+from src.sensors.lidar import *
+from src.drone import Drone
+from src.wall import *
 
 HUMAN_RENDERMODE = 'human'
 
@@ -18,14 +18,14 @@ class DroneEnvironment(gym.Env):
         self.observation_space = spaces.Box(
             low=0.0,
             high=MAX_LIDAR_DISTANCE,
-            shape=(NB_LIDAR_ANGLES,),  # 16 distances + vitesse x et y
+            shape=(NB_LIDAR_ANGLES,),  # 8 distances
             dtype=np.float32,
         )
 
         # action space
         self.action_space = spaces.Box(
-            low=-50.0,
-            high=50.0,
+            low=-150.0,
+            high=150.0,
             shape=(2,),
             dtype=np.float32,
         )
@@ -49,6 +49,7 @@ class DroneEnvironment(gym.Env):
 
         self.terminate = False
         self.elapsed_time = 0
+        self.quit = False
 
         return self._get_observation(), {}
 
@@ -67,7 +68,7 @@ class DroneEnvironment(gym.Env):
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
-                    exit()
+                    self.quit = True
 
         # observation et reward pour l'état actuel
         obs = self._get_observation()
@@ -89,16 +90,20 @@ class DroneEnvironment(gym.Env):
         for w in self.walls:
             if self.drone.collides_with(w):
                 self.terminate = True
-                return -5000
+                return -200
             
         distance_travelled = self.drone.get_rect().right
 
+        """
         if distance_travelled > WINDOW_WIDTH:
+            self.terminate = True
             # reward pour avoir atteint la ligne d'arrivée
             # plus le drone est arrivé vite, plus le reward est grand
-            return 5000 / self.elapsed_time
+            return 400 / self.elapsed_time
+        """
 
-        return -10 + 20 * distance_travelled / (WINDOW_WIDTH - DRONE_SIZE.x)
+        #return -1 #todo find better reward fctn
+        return 100 * distance_travelled / (WINDOW_WIDTH - DRONE_SIZE.x)
 
     def _check_termination(self):
         return self.terminate or self.elapsed_time > MAX_SIMULATION_TIME
@@ -110,12 +115,15 @@ class DroneEnvironment(gym.Env):
         self.walls.append(Wall(vec(-50,-50), vec(50 + WINDOW_WIDTH + 50, 50)))
         self.walls.append(Wall(vec(-50, WINDOW_HEIGHT), vec(50 + WINDOW_WIDTH + 50, 50)))
 
-        for i in range(8):
+        for i in range(10):
             MIN_OBST_SIZE = 40
-            MAX_OBST_SIZE = 70
+            MAX_OBST_SIZE = 50
             pos = vec(np.random.randint(150, WINDOW_WIDTH - MAX_OBST_SIZE), np.random.randint(0, WINDOW_HEIGHT - MAX_OBST_SIZE))
             size = np.random.randint(MIN_OBST_SIZE, MAX_OBST_SIZE)
             self.walls.append(Wall(pos, vec(size,size)))
+
+    def has_user_quit(self):
+        return self.quit
 
     def render(self):
         if self.render_mode == HUMAN_RENDERMODE:

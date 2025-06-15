@@ -1,10 +1,10 @@
 import pygame
 
-from drone import Drone
+from src.drone import Drone
 
-from utils import *
-from wall import *
-from sensors.lidar import *
+from src.constants import *
+from src.wall import *
+from src.sensors.lidar import *
 
 FramePerSec = pygame.time.Clock()
 

@@ -1,5 +1,5 @@
 import numpy as np
-from utils import *
+from src.constants import *
 
 # sensor_global_pos : global 2D pos of the sensor origin in the world
 # obstacles_global : global 2D position and size of obstacles (rectangles) -> list of tuples (x,y,w,h)

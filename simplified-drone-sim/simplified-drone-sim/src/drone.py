@@ -1,5 +1,5 @@
-from utils import *
-from sensors.inertial_unit import *
+from src.constants import *
+from src.sensors.inertial_unit import *
 
 class Drone:
     def __init__(self, initial_position = None, initial_velocity = None):

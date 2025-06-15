@@ -1,4 +1,4 @@
-from utils import *
+from src.constants import *
 
 class Wall:
     def __init__(self, position, size, color = (100,100,50)):

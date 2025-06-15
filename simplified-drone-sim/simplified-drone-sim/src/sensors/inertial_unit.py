@@ -1,4 +1,4 @@
-from utils import *
+from src.constants import *
 import numpy as np
 
 #todo fix methods names that are not very self-explanatory
