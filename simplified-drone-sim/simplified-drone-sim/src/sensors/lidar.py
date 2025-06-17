@@ -38,12 +38,13 @@ def emulate_lidar(sensor_global_pos, obstacles):
             data.append(MAX_LIDAR_DISTANCE)
     return data
 
-def lidar_data_to_points(data, sensor_pos_global):
+def lidar_data_to_points(data, sensor_pos_global, ignore_max_distances=False):
     points = []
     for i in range(NB_LIDAR_ANGLES):
-        current_angle_rad = np.radians(i * 360 / NB_LIDAR_ANGLES)
+        if data[i] != MAX_LIDAR_DISTANCE:
+            current_angle_rad = np.radians(i * 360 / NB_LIDAR_ANGLES)
 
-        dir = vec(np.cos(current_angle_rad), np.sin(current_angle_rad))
-        points.append(sensor_pos_global + dir * data[i])
+            dir = vec(np.cos(current_angle_rad), np.sin(current_angle_rad))
+            points.append(sensor_pos_global + dir * data[i])
 
     return points

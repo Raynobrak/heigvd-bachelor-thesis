@@ -5,6 +5,14 @@ from src.drone import Drone
 from src.constants import *
 from src.wall import *
 from src.sensors.lidar import *
+from src.Map import Map
+
+from enum import Enum
+
+class DisplayMode(Enum):
+    NORMAL = 0,
+    SENSOR_VIEW = 1,
+    LIDAR_MAP = 2
 
 FramePerSec = pygame.time.Clock()
 
@@ -12,8 +20,9 @@ class Simulation:
     def __init__(self):
         pygame.init()
         self.window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-        self.what_drone_sees_mode = False
+        self.display_mode = DisplayMode.NORMAL
         self.show_estimated_position = False
+        self.map = Map()
         self.reset_sim()
 
     def reset_sim(self):
@@ -24,6 +33,18 @@ class Simulation:
         self.obstacles = []
         self.obstacles.append(Wall(vec(200,200),vec(40,90)))
         self.obstacles.append(Wall(vec(350,250),vec(50,50)))
+
+        self.obstacles.append(Wall(vec(-50,-50), vec(50, 50 + WINDOW_HEIGHT + 50)))
+        self.obstacles.append(Wall(vec(-50,-50), vec(50 + WINDOW_WIDTH + 50, 50)))
+        self.obstacles.append(Wall(vec(-50, WINDOW_HEIGHT), vec(50 + WINDOW_WIDTH + 50, 50)))
+
+        rng = np.random.default_rng(seed=42)
+        for i in range(10):
+            MIN_OBST_SIZE = 40
+            MAX_OBST_SIZE = 50
+            pos = vec(rng.integers(150, WINDOW_WIDTH - MAX_OBST_SIZE), rng.integers(0, WINDOW_HEIGHT - MAX_OBST_SIZE))
+            size = rng.integers(MIN_OBST_SIZE, MAX_OBST_SIZE)
+            self.obstacles.append(Wall(pos, vec(size,size)))
 
     def run(self):
         pygame.display.set_caption("Game")
@@ -48,8 +69,12 @@ class Simulation:
                     self.pause_menu()
                 elif event.key == pygame.K_r:
                     self.reset_sim()
-                elif event.key == pygame.K_SPACE:
-                    self.what_drone_sees_mode = not self.what_drone_sees_mode
+                elif event.key == pygame.K_1:
+                    self.display_mode = DisplayMode.NORMAL
+                elif event.key == pygame.K_2:
+                    self.display_mode = DisplayMode.SENSOR_VIEW
+                elif event.key == pygame.K_3:
+                    self.display_mode = DisplayMode.LIDAR_MAP
                 elif event.key == pygame.K_p:
                     self.show_estimated_position = not self.show_estimated_position
 
@@ -90,8 +115,10 @@ class Simulation:
     def render(self):
         self.window.fill((0,0,0), (0,0,self.window.get_width(), self.window.get_height()))
 
-        if self.what_drone_sees_mode:
+        if self.display_mode == DisplayMode.SENSOR_VIEW:
             self.draw_what_drone_sees()
+        elif self.display_mode == DisplayMode.LIDAR_MAP:
+            self.draw_lidar_map()
         else:
             self.draw_simulation()
 
@@ -129,3 +156,28 @@ class Simulation:
         acceleration = self.drone.read_accelerometer_value()
         pygame.draw.line(self.window, IU_ARROWS_COLOR, window_center, window_center + vec(1,0) * acceleration.x * IU_ARROW_LENGTH_MULTIPLIER, IU_ARROW_WIDTH)
         pygame.draw.line(self.window, IU_ARROWS_COLOR, window_center, window_center + vec(0,1) * acceleration.y * IU_ARROW_LENGTH_MULTIPLIER, IU_ARROW_WIDTH)
+
+    def draw_lidar_map(self):
+        self.drone.display_on_window(self.window, self.show_estimated_position)
+
+        # emulate and draw lidar points
+        sensor_pos = self.drone.get_center_position()
+        data = emulate_lidar(sensor_pos, self.obstacles)
+        points = lidar_data_to_points(data, sensor_pos)
+        for p in points:
+            pygame.draw.circle(self.window, LIDAR_POINT_COLOR, p, LIDAR_POINT_RADIUS)
+
+        #est_pos = self.drone.inertial_unit.read_sensor_estimated_position()
+
+        # show lidar map
+        self.map.add_scan_at_pos(sensor_pos, data)
+
+        map_points = self.map.get_map_points()
+        print(len(map_points))
+        for p in map_points:   
+            pygame.draw.circle(self.window, (255,255,255), p, LIDAR_POINT_RADIUS)
+
+        # draw accelerometer forces for visualisation
+        acceleration = self.drone.read_accelerometer_value()
+        pygame.draw.line(self.window, IU_ARROWS_COLOR, sensor_pos, sensor_pos + vec(1,0) * acceleration.x * IU_ARROW_LENGTH_MULTIPLIER, IU_ARROW_WIDTH)
+        pygame.draw.line(self.window, IU_ARROWS_COLOR, sensor_pos, sensor_pos + vec(0,1) * acceleration.y * IU_ARROW_LENGTH_MULTIPLIER, IU_ARROW_WIDTH)

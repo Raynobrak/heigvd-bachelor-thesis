@@ -6,7 +6,7 @@ vec = pygame.math.Vector2
 WINDOW_WIDTH = 1000
 WINDOW_HEIGHT = 450
 
-SIMULATION_FPS = 30
+SIMULATION_FPS = 60
 SIMULATION_TIME_STEP = 1/SIMULATION_FPS
 
 DRONE_SIZE = vec(40,40) # unit
@@ -15,14 +15,14 @@ DRONE_COLOR = (167, 194, 32)
 
 # lidar sensor
 NB_LIDAR_ANGLES = 16
-MAX_LIDAR_DISTANCE = 200
+MAX_LIDAR_DISTANCE = 1000
 
 LIDAR_POINT_COLOR = (0,0,255)
 LIDAR_POINT_RADIUS = 3
 
 # inertial unit sensor
-IU_FREQUENCY = 50 # hZ -> number of measures per second
-IU_NOISE = 0.1
+IU_FREQUENCY = 60 # hZ -> number of measures per second
+IU_NOISE = 0.01
 IU_PREDICTION_COLOR = (255,0,0)
 
 IU_ARROW_WIDTH = 10
