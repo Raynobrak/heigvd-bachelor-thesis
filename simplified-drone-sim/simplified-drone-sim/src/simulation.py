@@ -12,7 +12,8 @@ from enum import Enum
 class DisplayMode(Enum):
     NORMAL = 0,
     SENSOR_VIEW = 1,
-    LIDAR_MAP = 2
+    LIDAR_MAP_CUSTOM = 2,
+    SLAM = 3
 
 FramePerSec = pygame.time.Clock()
 
@@ -25,7 +26,8 @@ class Simulation:
         self.map = Map()
         self.reset_sim()
 
-        self.last_pos = self.drone.get_center_position()
+        self.last_drone_pos = self.drone.get_center_position()
+        self.time_since_last_display = 0
 
     def reset_sim(self):
         self.drone = Drone()
@@ -71,12 +73,16 @@ class Simulation:
                     self.pause_menu()
                 elif event.key == pygame.K_r:
                     self.reset_sim()
+                elif event.key == pygame.K_SPACE:
+                    self.drone.velocity = vec(0,0)
                 elif event.key == pygame.K_1:
                     self.display_mode = DisplayMode.NORMAL
                 elif event.key == pygame.K_2:
                     self.display_mode = DisplayMode.SENSOR_VIEW
                 elif event.key == pygame.K_3:
-                    self.display_mode = DisplayMode.LIDAR_MAP
+                    self.display_mode = DisplayMode.LIDAR_MAP_CUSTOM
+                elif event.key == pygame.K_4:
+                    self.display_mode = DisplayMode.SLAM
                 elif event.key == pygame.K_p:
                     self.show_estimated_position = not self.show_estimated_position
 
@@ -119,8 +125,10 @@ class Simulation:
 
         if self.display_mode == DisplayMode.SENSOR_VIEW:
             self.draw_what_drone_sees()
-        elif self.display_mode == DisplayMode.LIDAR_MAP:
+        elif self.display_mode == DisplayMode.LIDAR_MAP_CUSTOM:
             self.draw_lidar_map()
+        elif self.display_mode == DisplayMode.SLAM:
+            self.draw_slam()
         else:
             self.draw_simulation()
 
@@ -164,20 +172,12 @@ class Simulation:
 
         # emulate and draw lidar points
         sensor_pos = self.drone.get_center_position()
-        data = emulate_lidar(sensor_pos, self.obstacles)
-        points = lidar_data_to_points(data, sensor_pos)
+        lidar_distances = emulate_lidar(sensor_pos, self.obstacles)
+        points = lidar_data_to_points(lidar_distances, sensor_pos)
         for p in points:
             pygame.draw.circle(self.window, LIDAR_POINT_COLOR, p, LIDAR_POINT_RADIUS)
 
-        #est_pos = self.drone.inertial_unit.read_sensor_estimated_position()
-
-        # show lidar map
-
-        motion = self.drone.get_center_position() - self.last_pos
-        self.last_pos = self.drone.get_center_position()
-
-        self.map.update_slam(motion, data)
-
+        # todo : show lidar map
         """ # todo : à enlever dès que le slam 2d fonctionne
         self.map.add_scan_at_pos(sensor_pos, data)
 
@@ -194,38 +194,45 @@ class Simulation:
                 color = (50,10 * gridmap.GetGridProb((x,y)),50)
                 pygame.draw.rect(self.window, color, pygame.Rect(x * pixel_size.x, y * pixel_size.y, pixel_size.x, pixel_size.y))
         """
-        ### affichage slam
-
-        gmap = self.map.gmap
-        x1, x0, y1, y0 = gmap.boundary
-        print(x0,x1,y0,y1)
-        prob_map = gmap.GetMapProb(x0, x1, y0, y1)  # shape = (y1-y0, x1-x0)
-
-        print('img')
-        # 2) Convertir en 8 bits 0-255 (grayscale)
-        img = (prob_map * 255).clip(0, 255).astype(np.uint8)
-
-        print('rgb_array')
-
-        # 3) Pour pygame, on passe un array (W×H×3) RGB ou un array 2D int
-        #    Ici, on crée un array 3D en dupliquant la couche grise
-        rgb_array = np.stack((img,)*3, axis=-1)       # shape = (H, W, 3)
-
-        print('surf1')
-        # 4) Créer la surface pygame
-        surf = pygame.surfarray.make_surface(rgb_array)  # fonction numpy→Surface :contentReference[oaicite:1]{index=1}
-
-        print('surf2')
-        # 5) Mettre à l’échelle pour remplir la fenêtre
-        surf = pygame.transform.scale(surf, (WINDOW_WIDTH, WINDOW_HEIGHT))
-
-        print('blit')
-        # 6) Afficher
-        self.window.blit(surf, (0, 0))
-
-        ### end affichage slam
 
         # draw accelerometer forces for visualisation
         acceleration = self.drone.read_accelerometer_value()
         pygame.draw.line(self.window, IU_ARROWS_COLOR, sensor_pos, sensor_pos + vec(1,0) * acceleration.x * IU_ARROW_LENGTH_MULTIPLIER, IU_ARROW_WIDTH)
         pygame.draw.line(self.window, IU_ARROWS_COLOR, sensor_pos, sensor_pos + vec(0,1) * acceleration.y * IU_ARROW_LENGTH_MULTIPLIER, IU_ARROW_WIDTH)
+
+    def draw_slam(self):
+        for wall in self.obstacles: 
+            wall.display_on_window(self.window)
+
+        self.drone.display_on_window(self.window, self.show_estimated_position)
+
+        # draw lidar points
+        sensor_pos = self.drone.get_center_position()
+        lidar_distances = emulate_lidar(sensor_pos, self.obstacles)
+        points = lidar_data_to_points(lidar_distances, sensor_pos)
+        for p in points:
+            pygame.draw.circle(self.window, LIDAR_POINT_COLOR, p, LIDAR_POINT_RADIUS)
+
+        exact_pos = self.drone.get_center_position()
+        exact_motion = exact_pos - self.last_drone_pos
+        self.last_drone_pos = exact_pos
+
+        lidar_distances = [px_to_mm(d) for d in lidar_distances]
+        
+        delta = px_to_mm(exact_motion)
+        dxy, angle = delta.as_polar()
+        motion = (dxy, 0, 1 / SIMULATION_FPS)
+
+        estimated_pos = self.map.update_slam(motion, lidar_distances)
+
+        print(px_to_mm(exact_pos), estimated_pos)
+
+        slam_map = self.map.get_map()
+
+        # todo : show lidar map
+        # todo : à enlever dès que le slam 2d fonctionne
+
+        self.time_since_last_display += 1 / SIMULATION_FPS
+        if self.time_since_last_display > 5:
+            self.map.display()
+            self.time_since_last_display = 0

@@ -2,67 +2,42 @@ from src.sensors.lidar import *
 from src.constants import *
 
 import numpy as np
-from libraries.toolbuddy_grid_slam.ParticleFilter import *
 
-#todo : renommer les constantes et refactor
-NUM_PARTICLES = 10     # nombre de particules
+from breezyslam.algorithms import RMHC_SLAM
+from breezyslam.sensors import *
 
-lidar_params = [NB_LIDAR_ANGLES,  0.0, 360.0, MAX_LIDAR_DISTANCE, 1.0,  5.0] # paramètre LIDAR [nb_beams, start_angle_deg, end_angle_deg, max_range, trans_step, rot_step]
-initial_bot_pos = np.array([0.0, 0.0, 0.0]) # position intiale : x,y,rotation
+import roboviz as rv
 
-# 3) Paramètres de la carte (log-odds occupied / free / max / min)
-map_params = [0.4, -0.4, 5.0, -5.0]
+# todo : définir distance minimale de détection
+#def __init__(self, scan_size, scan_rate_hz, detection_angle_degrees, distance_no_detection_mm, detection_margin=0, offset_mm=0):
+class Lidar(Laser):
+    def __init__(self):
+        Laser.__init__(self, NB_LIDAR_ANGLES, SIMULATION_FPS, 360, 0, 0, 0)
 
 class Map:
     def __init__(self):
         self.map = []
 
-        self.gmap = GridMap(map_params)
-        self.particle_filter = ParticleFilter(
-            initial_bot_pos.copy(),       
-            lidar_params,            
-            copy.deepcopy(self.gmap),  
-            NUM_PARTICLES         
-        )
+        self.lidar = Lidar()
+        self.mapbytes = bytearray(WINDOW_WIDTH*WINDOW_WIDTH)
+
+        # def __init__(self, laser, map_size_pixels, map_size_meters, 
+        # map_quality=_DEFAULT_MAP_QUALITY, hole_width_mm=_DEFAULT_HOLE_WIDTH_MM)
+        self.slam = RMHC_SLAM(self.lidar, WINDOW_WIDTH, px_to_meters(WINDOW_WIDTH), map_quality=100) 
+
+        self.viz = rv.MapVisualizer(WINDOW_WIDTH, px_to_meters(WINDOW_WIDTH), 'SLAM')
 
     def update_slam(self, estimated_motion, lidar_distances):
-        # todo : estimated_pos doit être calculé et màj l'IMU et prendre en compte la vitesse
+        #todo fix : estimated motion doit être un tuple (dxy, theta, dt seconds)
+        self.slam.update(lidar_distances, estimated_motion)
 
-        print('debug : begin update')
-        # déterminer la commande discrète du mouvement perçu (est-ce qu'on a avancé, reculé ou tourné ? -> control = direction du mouvement)
-        control = self._imu_to_control(estimated_motion.x, estimated_motion.y, 0)
+        x, y, theta = self.slam.getpos()
 
-        print('debug : feed')
-
-        self.particle_filter.Feed(control, lidar_distances)
-
-        print('debug : resample')
-        self.particle_filter.Resampling(lidar_distances)
-
-        # mise à jour de la carte globale à partir du scan et de la particule la plus probable
-        print('debug : find best')
-        best = np.argmax(self.particle_filter.weights)
-        x, y, theta = self.particle_filter.particle_list[best].pos
-        # todo : enlever ça ?
-        #self.gmap.update(lidar_distances, (x, y, theta))
-
-    def _imu_to_control(self, dx, dy, dtheta):
-        ts = lidar_params[4]   # trans_step
-        rs = lidar_params[5]   # rot_step
-
-        # Priorité aux translations
-        if abs(dx) > abs(dy) and abs(dx) >= ts:
-            return 1 if dx > 0 else 2   # 1=avancer, 2=reculer
-        # Sinon rotations
-        if abs(dtheta) >= rs:
-            return 3 if dtheta > 0 else 4   # 3=rot gauche, 4=rot droite
-        # Pas de mouvement significatif
-        return 0
-
-    def get_drone_position(self):
-        best = np.argmax(self.particle_filter.weights)
-        x, y, theta = self.particle_filter.particles[best]
         return vec(x,y)
+
+    def get_map(self):
+        self.slam.getmap(self.mapbytes)
+        return self.mapbytes
 
     def add_scan_at_pos(self, exact_pos, lidar_data):
         points = lidar_data_to_points(lidar_data, exact_pos, ignore_max_distances=True)
@@ -71,3 +46,8 @@ class Map:
 
     def get_map_points(self):
         return self.map
+    
+    def display(self):
+        m = self.get_map()
+        if not self.viz.display(0, 0, 0, m):
+            exit(0)

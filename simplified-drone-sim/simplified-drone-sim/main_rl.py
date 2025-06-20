@@ -1,4 +1,3 @@
-from src.simulation import *
 from src.DroneEnvironment import *
 from datetime import datetime
 
@@ -17,7 +16,7 @@ from stable_baselines3.common.monitor import Monitor
 
 MODELS_FOLDER = './models/'
 MODEL_FILENAME = MODELS_FOLDER + 'PPO_final_1hour_training' # = None to start a new model from scratch
-#MODEL_FILENAME = None
+MODEL_FILENAME = None
 SAVE_PREFIX = 'ppo2'
 TIMESTEPS_PER_EPOCH = 1000 # number of steps between each visualisation
 EPISODES_PER_VIS = 5 # number of episodes to visualize after training
