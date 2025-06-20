@@ -5,7 +5,7 @@ from src.drone import Drone
 from src.constants import *
 from src.wall import *
 from src.sensors.lidar import *
-from src.Map import Map
+from src.Map import *
 
 from enum import Enum
 
@@ -24,6 +24,8 @@ class Simulation:
         self.show_estimated_position = False
         self.map = Map()
         self.reset_sim()
+
+        self.last_pos = self.drone.get_center_position()
 
     def reset_sim(self):
         self.drone = Drone()
@@ -170,12 +172,58 @@ class Simulation:
         #est_pos = self.drone.inertial_unit.read_sensor_estimated_position()
 
         # show lidar map
+
+        motion = self.drone.get_center_position() - self.last_pos
+        self.last_pos = self.drone.get_center_position()
+
+        self.map.update_slam(motion, data)
+
+        """ # todo : à enlever dès que le slam 2d fonctionne
         self.map.add_scan_at_pos(sensor_pos, data)
 
         map_points = self.map.get_map_points()
         print(len(map_points))
         for p in map_points:   
             pygame.draw.circle(self.window, (255,255,255), p, LIDAR_POINT_RADIUS)
+        
+
+        pixel_size = vec(WINDOW_WIDTH / MAP_SIZE, WINDOW_HEIGHT / MAP_SIZE)
+        gmap = self.map.gmap
+        for x in range(MAP_SIZE):
+            for y in range(MAP_SIZE):
+                color = (50,10 * gridmap.GetGridProb((x,y)),50)
+                pygame.draw.rect(self.window, color, pygame.Rect(x * pixel_size.x, y * pixel_size.y, pixel_size.x, pixel_size.y))
+        """
+        ### affichage slam
+
+        gmap = self.map.gmap
+        x1, x0, y1, y0 = gmap.boundary
+        print(x0,x1,y0,y1)
+        prob_map = gmap.GetMapProb(x0, x1, y0, y1)  # shape = (y1-y0, x1-x0)
+
+        print('img')
+        # 2) Convertir en 8 bits 0-255 (grayscale)
+        img = (prob_map * 255).clip(0, 255).astype(np.uint8)
+
+        print('rgb_array')
+
+        # 3) Pour pygame, on passe un array (W×H×3) RGB ou un array 2D int
+        #    Ici, on crée un array 3D en dupliquant la couche grise
+        rgb_array = np.stack((img,)*3, axis=-1)       # shape = (H, W, 3)
+
+        print('surf1')
+        # 4) Créer la surface pygame
+        surf = pygame.surfarray.make_surface(rgb_array)  # fonction numpy→Surface :contentReference[oaicite:1]{index=1}
+
+        print('surf2')
+        # 5) Mettre à l’échelle pour remplir la fenêtre
+        surf = pygame.transform.scale(surf, (WINDOW_WIDTH, WINDOW_HEIGHT))
+
+        print('blit')
+        # 6) Afficher
+        self.window.blit(surf, (0, 0))
+
+        ### end affichage slam
 
         # draw accelerometer forces for visualisation
         acceleration = self.drone.read_accelerometer_value()
