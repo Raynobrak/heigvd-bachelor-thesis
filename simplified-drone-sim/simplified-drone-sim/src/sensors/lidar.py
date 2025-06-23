@@ -1,6 +1,8 @@
 import numpy as np
 from src.constants import *
 
+# todo : encapsuler le lidar dans une classe et fixer une fréquence de fonctionnement
+
 # sensor_global_pos : global 2D pos of the sensor origin in the world
 # obstacles_global : global 2D position and size of obstacles (rectangles) -> list of tuples (x,y,w,h)
 # retourne : une liste des distances aux objets les plus proches pour chaque angle du capteur
@@ -10,7 +12,7 @@ def emulate_lidar(sensor_global_pos, obstacles):
     # définir le "step" de chaque rayon (plus c'est petit, plus c'est précis)
     # définir la distance max
 
-    data = list()
+    scan = list()
 
     LIDAR_STEP = 2
 
@@ -33,10 +35,10 @@ def emulate_lidar(sensor_global_pos, obstacles):
                 distance += LIDAR_STEP
         
         if obstacle_detected:
-            data.append(distance)
+            scan.append(distance)
         else:
-            data.append(MAX_LIDAR_DISTANCE)
-    return data
+            scan.append(MAX_LIDAR_DISTANCE)
+    return scan
 
 def lidar_data_to_points(data, sensor_pos_global, ignore_max_distances=False):
     points = []
