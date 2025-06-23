@@ -9,6 +9,8 @@ from src.Map import *
 
 from enum import Enum
 
+STARTING_POS = vec(100, 100)
+
 class DisplayMode(Enum):
     NORMAL = 0,
     SENSOR_VIEW = 1,
@@ -27,10 +29,12 @@ class Simulation:
         self.reset_sim()
 
         self.last_drone_pos = self.drone.get_center_position()
+        self.last_direction = vec(1,0)
         self.time_since_last_display = 0
 
     def reset_sim(self):
         self.drone = Drone()
+        self.drone.position = STARTING_POS - DRONE_SIZE / 2
         self.build_map()
         
     def build_map(self):
@@ -104,6 +108,28 @@ class Simulation:
         self.apply_control_strategy(dt)
         self.drone.update(dt)
 
+        if(self.display_mode == DisplayMode.SLAM):
+            self.update_slam(dt)
+
+    def update_slam(self, dt):
+        # scan lidar
+        lidar_scan_mm = [px_to_mm(d) for d in emulate_lidar(self.drone.get_center_position(), self.obstacles)]
+
+        # déplacement
+        displacement_mm = px_to_mm(self.drone.get_center_position() - self.last_drone_pos)
+        self.last_drone_pos = self.drone.get_center_position()
+
+        # changement d'angle (prograde)
+        angle_delta = self.last_direction.angle_to(self.drone.velocity)
+        self.last_direction = self.drone.velocity
+
+        # structure représentant le changement de position
+        dxy = displacement_mm.magnitude()
+        pose_change = (dxy, angle_delta, 1 / SIMULATION_FPS)
+
+        # màj du SLAM
+        self.map.update_slam(lidar_scan_millimeters=lidar_scan_mm, motion_estimation_millimeters=pose_change)
+
     def get_sensor_data(self):
         return emulate_lidar(self.drone.get_center_position(), self.obstacles), self.drone.read_accelerometer_value()
 
@@ -118,7 +144,6 @@ class Simulation:
         for wall in self.obstacles:
             # todo check collisions
             pass
-    
 
     def render(self):
         self.window.fill((0,0,0), (0,0,self.window.get_width(), self.window.get_height()))
@@ -207,32 +232,19 @@ class Simulation:
         self.drone.display_on_window(self.window, self.show_estimated_position)
 
         # draw lidar points
+        '''
         sensor_pos = self.drone.get_center_position()
         lidar_distances = emulate_lidar(sensor_pos, self.obstacles)
         points = lidar_data_to_points(lidar_distances, sensor_pos)
         for p in points:
             pygame.draw.circle(self.window, LIDAR_POINT_COLOR, p, LIDAR_POINT_RADIUS)
 
-        exact_pos = self.drone.get_center_position()
-        exact_motion = exact_pos - self.last_drone_pos
-        self.last_drone_pos = exact_pos
-
-        lidar_distances = [px_to_mm(d) for d in lidar_distances]
+        '''
         
-        delta = px_to_mm(exact_motion)
-        dxy, angle = delta.as_polar()
-        motion = (dxy, 0, 1 / SIMULATION_FPS)
-
-        estimated_pos = self.map.update_slam(motion, lidar_distances)
-
-        print(px_to_mm(exact_pos), estimated_pos)
-
-        slam_map = self.map.get_map()
-
-        # todo : show lidar map
-        # todo : à enlever dès que le slam 2d fonctionne
+        #estimated_position = self.map.get_estimated_position_in_window_px(vec(WINDOW_WIDTH, WINDOW_HEIGHT), STARTING_POS)
+        #pygame.draw.circle(self.window, (255,0,0), estimated_position, LIDAR_POINT_RADIUS*5)
 
         self.time_since_last_display += 1 / SIMULATION_FPS
-        if self.time_since_last_display > 5:
+        if self.time_since_last_display > 1:
             self.map.display()
             self.time_since_last_display = 0

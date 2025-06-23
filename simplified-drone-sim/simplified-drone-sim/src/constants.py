@@ -4,12 +4,17 @@ import copy
 vec = pygame.math.Vector2
 
 PIXELS_PER_METER = 50
-PIXELS_PER_MILLIMETERS = PIXELS_PER_METER / 1000
+MM_IN_METER = 1000
 
 def px_to_meters(px): return px / PIXELS_PER_METER
-def px_to_mm(px): return px / PIXELS_PER_MILLIMETERS
+def px_to_mm(px): return px_to_meters(px) * MM_IN_METER
 def meters_to_px(meters): return meters * PIXELS_PER_METER
-def mm_to_px(mm): return mm * PIXELS_PER_MILLIMETERS
+def mm_to_px(mm): return meters_to_px(mm / MM_IN_METER)
+
+def topleft_to_bottomleft(v):
+    return vec(v.x, WINDOW_HEIGHT - v.y)
+def bottomleft_to_topleft(v):
+    return topleft_to_bottomleft(v)
 
 WINDOW_WIDTH = 1000
 WINDOW_HEIGHT = 450
@@ -22,7 +27,7 @@ DRONE_ACCELERATION = 200 # unit/s/s
 DRONE_COLOR = (167, 194, 32)
 
 # lidar sensor
-NB_LIDAR_ANGLES = 64
+NB_LIDAR_ANGLES = 128
 MAX_LIDAR_DISTANCE = 1000
 
 LIDAR_POINT_COLOR = (0,0,255)

@@ -3,7 +3,7 @@ from src.constants import *
 
 import numpy as np
 
-from breezyslam.algorithms import RMHC_SLAM
+from breezyslam.algorithms import RMHC_SLAM, Deterministic_SLAM
 from breezyslam.sensors import *
 
 import roboviz as rv
@@ -16,36 +16,28 @@ class Lidar(Laser):
 
 class Map:
     def __init__(self):
-        self.map = []
-
         self.lidar = Lidar()
-        self.mapbytes = bytearray(WINDOW_WIDTH*WINDOW_WIDTH)
+        self.mapbytes = bytearray(2*WINDOW_WIDTH*2*WINDOW_WIDTH)
 
-        # def __init__(self, laser, map_size_pixels, map_size_meters, 
-        # map_quality=_DEFAULT_MAP_QUALITY, hole_width_mm=_DEFAULT_HOLE_WIDTH_MM)
-        self.slam = RMHC_SLAM(self.lidar, WINDOW_WIDTH, px_to_meters(WINDOW_WIDTH), map_quality=100) 
+        self.slam = RMHC_SLAM(self.lidar, 2*WINDOW_WIDTH, 2*px_to_meters(WINDOW_WIDTH), map_quality=5)
 
-        self.viz = rv.MapVisualizer(WINDOW_WIDTH, px_to_meters(WINDOW_WIDTH), 'SLAM')
+        self.starting_pos = vec(self.slam.position.x_mm, self.slam.position.y_mm)
+        self.viz = rv.MapVisualizer(2*WINDOW_WIDTH, 2*px_to_meters(WINDOW_WIDTH), 'SLAM')
 
-    def update_slam(self, estimated_motion, lidar_distances):
+    def update_slam(self, lidar_scan_millimeters, motion_estimation_millimeters):
         #todo fix : estimated motion doit être un tuple (dxy, theta, dt seconds)
-        self.slam.update(lidar_distances, estimated_motion)
+        self.slam.update(scans_mm=lidar_scan_millimeters, pose_change=None)
 
+    def get_estimated_position_mm(self):
         x, y, theta = self.slam.getpos()
-
-        return vec(x,y)
+        return vec(x,y) - self.starting_pos
+    
+    def get_estimated_position_in_window_px(self, window_size_px, starting_position_px):
+        pos = mm_to_px(self.get_estimated_position_mm()) + starting_position_px
 
     def get_map(self):
         self.slam.getmap(self.mapbytes)
         return self.mapbytes
-
-    def add_scan_at_pos(self, exact_pos, lidar_data):
-        points = lidar_data_to_points(lidar_data, exact_pos, ignore_max_distances=True)
-        for p in points:
-            self.map.append(p)
-
-    def get_map_points(self):
-        return self.map
     
     def display(self):
         m = self.get_map()
