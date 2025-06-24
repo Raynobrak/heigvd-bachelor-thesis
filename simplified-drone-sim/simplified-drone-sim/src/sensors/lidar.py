@@ -1,6 +1,8 @@
 import numpy as np
 from src.constants import *
 
+REVERSE_X = -1
+
 # todo : encapsuler le lidar dans une classe et fixer une fréquence de fonctionnement
 # todo : ajouter du bruit
 
@@ -17,7 +19,7 @@ def emulate_lidar(sensor_global_pos, obstacles):
 
     for i in range(NB_LIDAR_ANGLES):
         current_angle_rad = np.radians(i * 360 / NB_LIDAR_ANGLES)
-        dir = vec(np.cos(current_angle_rad), np.sin(current_angle_rad))
+        dir = vec(REVERSE_X * np.cos(current_angle_rad), np.sin(current_angle_rad))
 
         obstacle_detected = False
 
@@ -44,7 +46,7 @@ def lidar_data_to_points(data, sensor_pos_global, ignore_max_distances=False):
         if data[i] != MAX_LIDAR_DISTANCE:
             current_angle_rad = np.radians(i * 360 / NB_LIDAR_ANGLES)
 
-            dir = vec(np.cos(current_angle_rad), np.sin(current_angle_rad))
+            dir = vec(REVERSE_X * np.cos(current_angle_rad), np.sin(current_angle_rad))
             points.append(sensor_pos_global + dir * data[i])
 
     return points
