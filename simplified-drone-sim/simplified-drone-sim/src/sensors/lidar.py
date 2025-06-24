@@ -2,6 +2,7 @@ import numpy as np
 from src.constants import *
 
 # todo : encapsuler le lidar dans une classe et fixer une fréquence de fonctionnement
+# todo : ajouter du bruit
 
 # sensor_global_pos : global 2D pos of the sensor origin in the world
 # obstacles_global : global 2D position and size of obstacles (rectangles) -> list of tuples (x,y,w,h)
@@ -14,28 +15,25 @@ def emulate_lidar(sensor_global_pos, obstacles):
 
     scan = list()
 
-    LIDAR_STEP = 2
-
     for i in range(NB_LIDAR_ANGLES):
         current_angle_rad = np.radians(i * 360 / NB_LIDAR_ANGLES)
-
         dir = vec(np.cos(current_angle_rad), np.sin(current_angle_rad))
 
-        distance = 0
         obstacle_detected = False
-        while distance < MAX_LIDAR_DISTANCE and not obstacle_detected:
-            point = sensor_global_pos + dir * distance
 
-            for obst in obstacles:
-                if obst.contains_point(point):
-                    obstacle_detected = True
-                    break
-
-            if not obstacle_detected:
-                distance += LIDAR_STEP
-        
+        max_point = sensor_global_pos + dir * MAX_LIDAR_DISTANCE
+        max_point = (max_point.x, max_point.y)
+        closest_squared = 2*MAX_LIDAR_DISTANCE*MAX_LIDAR_DISTANCE
+        for obst in obstacles:
+            clipped_line = obst.rect.clipline((sensor_global_pos.x, sensor_global_pos.y), max_point)
+            if clipped_line:
+                obstacle_detected = True
+                (x,y), end = clipped_line
+                squared_distance = (vec(x,y) - sensor_global_pos).magnitude_squared()
+                if squared_distance < closest_squared:
+                    closest_squared = squared_distance
         if obstacle_detected:
-            scan.append(distance)
+            scan.append(np.sqrt(closest_squared))
         else:
             scan.append(MAX_LIDAR_DISTANCE)
     return scan
