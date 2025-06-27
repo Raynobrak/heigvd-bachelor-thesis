@@ -11,6 +11,8 @@ import pybullet as p
 # TODO : adapter
 
 class ReinforcementLearningEnv(BaseAviary):
+    REWARD_TARGET = np.array([2,2,1])
+
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
                  num_drones: int=1,
@@ -59,8 +61,8 @@ class ReinforcementLearningEnv(BaseAviary):
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
                          neighbourhood_radius=neighbourhood_radius,
-                         initial_xyzs=initial_xyzs,
-                         initial_rpys=initial_rpys,
+                         initial_xyzs=np.array([initial_xyzs]),
+                         initial_rpys=np.array([[initial_rpys]]),
                          physics=physics,
                          pyb_freq=pyb_freq,
                          ctrl_freq=ctrl_freq,
@@ -135,36 +137,12 @@ class ReinforcementLearningEnv(BaseAviary):
 
         return np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
 
-    ################################################################################
-
     def _preprocessAction(self, action):
-
-
-        """     
-        control_timestep : float
-            The time step at which control is computed.
-        state : ndarray
-            (20,)-shaped array of floats containing the current state of the drone.
-        target_pos : ndarray
-            (3,1)-shaped array of floats containing the desired position.
-        target_rpy : ndarray, optional
-            (3,1)-shaped array of floats containing the desired orientation as roll, pitch, yaw.
-        target_vel : ndarray, optional
-            (3,1)-shaped array of floats containing the desired velocity.
-        target_rpy_rates : ndarray, optional
-            (3,1)-shaped array of floats containing the desired roll, pitch, and yaw rates.
-        """
-
         obs = self._computeObs()
         state = obs[0]
         target_pos = obs[0,0:3].reshape(-1)
         target_rpy = self.INIT_RPYS[0,:]
         target_vel = action.reshape(-1)
-
-        print(state.shape)
-        print(target_pos.shape)
-        print(target_rpy.shape)
-        print(target_vel.shape)
         
         target_rpms = self.pid_controller.computeControlFromState(control_timestep=self.CTRL_TIMESTEP,
                                                                   state=state,
@@ -173,16 +151,10 @@ class ReinforcementLearningEnv(BaseAviary):
                                                                   target_vel=target_vel)
         
         return np.array(np.clip(target_rpms[0], 0, self.MAX_RPM))
-        return np.array([np.clip(target_rpms[i, :], 0, self.MAX_RPM) for i in range(self.NUM_DRONES)])
-
-    ################################################################################
 
     def _computeReward(self):
-
-        TARGET = np.array([2,2,1])
-
         current_pos = self.pos[0,:]
-        distance = np.linalg.norm(TARGET - current_pos)
+        distance = np.linalg.norm(self.REWARD_TARGET - current_pos)
 
         error_radius = 0.01
         reward = 1/(distance + error_radius) - 0.5
@@ -194,12 +166,9 @@ class ReinforcementLearningEnv(BaseAviary):
         # todo : reward proportionnel à la fréquence de controle de la simulation (pour éviter que ça soit déséquilibré si on change la fréquence)
         
         return reward
-
-    ################################################################################
     
     def _computeTerminated(self):
         return self.terminated    
-    ################################################################################
     
     def _computeTruncated(self):
         """Computes the current truncated value(s).
@@ -213,8 +182,6 @@ class ReinforcementLearningEnv(BaseAviary):
 
         """
         return False
-
-    ################################################################################
     
     def _computeInfo(self):
         """Computes the current info dict(s).
