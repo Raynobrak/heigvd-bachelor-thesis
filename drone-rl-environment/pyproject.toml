@@ -1,0 +1,21 @@
+[project]
+name = "drone-rl-environment"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Raynobrak",email = "lcs.charbonnier@gmail.com"}
+]
+readme = "README.md"
+dependencies = [
+]
+
+[tool.poetry]
+packages = [{include = "drone_rl_environment", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+gym-pybullet-drones = { path = "./libraries/gym-pybullet-drones", develop = true }
