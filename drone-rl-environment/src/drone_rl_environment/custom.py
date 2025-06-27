@@ -15,7 +15,7 @@ from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.utils.utils import sync, str2bool
 
-from gym_pybullet_drones.envs.reinforcement_learning_env import ReinforcementLearningEnv
+from reinforcement_learning_env import *
 
 DRONE_MODEL = DroneModel("cf2x")
 DEFAULT_NUM_DRONES = 1
@@ -66,13 +66,6 @@ def run(
                         user_debug_gui=user_debug_gui
                         )
 
-    # logger # todo : voir si vraiment utile sinon enlever
-    logger = Logger(logging_freq_hz=control_freq_hz,
-                    num_drones=num_drones,
-                    output_folder=output_folder,
-                    colab=colab
-                    )
-
     # simulation
     action = np.zeros((3,1))
     START = time.time()
@@ -88,17 +81,8 @@ def run(
         # synchronisation de l'affichage de la simulation
         if gui:
             sync(i, START, env.CTRL_TIMESTEP)
-
-    #### Close the environment #################################
     env.close()
 
-    #### Save the simulation results ###########################
-    logger.save()
-    logger.save_as_csv("pid") # Optional CSV save
-
-    #### Plot the simulation results ###########################
-    if plot:
-        logger.plot()
 
 if __name__ == "__main__":
     #### Define and parse (optional) arguments for the script ##

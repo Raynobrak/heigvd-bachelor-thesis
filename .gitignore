@@ -6,3 +6,4 @@
 /simplified-drone-sim/simplified-drone-sim/src/training/__pycache__
 drone-rl-environment/libraries/gym-pybullet-drones/
 /simplified-drone-sim/models
+/drone-rl-environment/src/drone_rl_environment/__pycache__

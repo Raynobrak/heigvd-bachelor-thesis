@@ -61,8 +61,8 @@ class ReinforcementLearningEnv(BaseAviary):
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
                          neighbourhood_radius=neighbourhood_radius,
-                         initial_xyzs=np.array([initial_xyzs]),
-                         initial_rpys=np.array([[initial_rpys]]),
+                         initial_xyzs=initial_xyzs,
+                         initial_rpys=initial_rpys,
                          physics=physics,
                          pyb_freq=pyb_freq,
                          ctrl_freq=ctrl_freq,
@@ -79,24 +79,20 @@ class ReinforcementLearningEnv(BaseAviary):
 
         
         # todo : générer les obstacles différemment
-        #p.connect()
-        # Taille (20, 20, 50) → demi-extents = moitié de chaque côté
         half_extents = [0.5, 0.5, 1]
 
-        # Créer la forme de collision (box)
+        # forme
         collision_shape_id = p.createCollisionShape(
             shapeType=p.GEOM_BOX,
             halfExtents=half_extents
         )
 
-        # Créer le corps rigide (statique ici)
+        # création de l'obstacle
         self.obstacle_id = p.createMultiBody(
             baseMass=0,  # 0 = statique
             baseCollisionShapeIndex=collision_shape_id,
             basePosition=[2, 2, half_extents[2]]  # centre de la boîte à 25 pour que sa base soit à z=0
         )
-
-    ################################################################################
 
     def _actionSpace(self):
         # the action space is a 3 dimensional vector representing the target velocity
@@ -151,10 +147,14 @@ class ReinforcementLearningEnv(BaseAviary):
                                                                   target_vel=target_vel)
         
         return np.array(np.clip(target_rpms[0], 0, self.MAX_RPM))
-
-    def _computeReward(self):
+    
+    def distance_to_target(self):
         current_pos = self.pos[0,:]
         distance = np.linalg.norm(self.REWARD_TARGET - current_pos)
+        return distance
+
+    def _computeReward(self):
+        distance = self.distance_to_target()
 
         error_radius = 0.01
         reward = 1/(distance + error_radius) - 0.5
@@ -168,6 +168,12 @@ class ReinforcementLearningEnv(BaseAviary):
         return reward
     
     def _computeTerminated(self):
+        # si on est assez proche de la cible, l'épisode est terminé
+        if self.distance_to_target() < 0.1:
+            self.terminated = True
+            return True
+
+
         return self.terminated    
     
     def _computeTruncated(self):
