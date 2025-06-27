@@ -4,3 +4,4 @@
 /simplified-drone-sim/simplified-drone-sim/src/__pycache__
 /simplified-drone-sim/simplified-drone-sim/src/sensors/__pycache__
 /simplified-drone-sim/simplified-drone-sim/src/training/__pycache__
+drone-rl-environment/libraries/gym-pybullet-drones/
