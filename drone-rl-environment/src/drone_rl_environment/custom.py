@@ -51,6 +51,11 @@ def run(
     INIT_XYZS = np.array([[0,0,0.2]])
     INIT_RPYS = np.array([np.zeros((3,))])
 
+    # todo next time
+    # 1. create learning env
+    # 2. learn for x steps
+    # 3. create visualisation env to visualize model
+
     # environnement
     env = ReinforcementLearningEnv(drone_model=drone,
                         num_drones=num_drones,
