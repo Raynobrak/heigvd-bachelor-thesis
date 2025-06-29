@@ -8,23 +8,21 @@ from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 
 import pybullet as p
 
-# TODO : adapter
+# todo : mettre cette constante ailleurs
+MAX_EPISODE_DURATION = 10
 
 class ReinforcementLearningEnv(BaseAviary):
     REWARD_TARGET = np.array([2,2,1])
 
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
-                 num_drones: int=1,
-                 neighbourhood_radius: float=np.inf,
                  initial_xyzs=None,
                  initial_rpys=None,
-                 physics: Physics=Physics.PYB,
+                 physics=None, # todo enlever
                  pyb_freq: int = 240,
                  ctrl_freq: int = 240,
                  gui=False,
                  record=False,
-                 obstacles=False,
                  user_debug_gui=True,
                  output_folder='results'
                  ):
@@ -59,8 +57,8 @@ class ReinforcementLearningEnv(BaseAviary):
 
         """
         super().__init__(drone_model=drone_model,
-                         num_drones=num_drones,
-                         neighbourhood_radius=neighbourhood_radius,
+                         num_drones=1,
+                         neighbourhood_radius=0,
                          initial_xyzs=initial_xyzs,
                          initial_rpys=initial_rpys,
                          physics=physics,
@@ -68,7 +66,7 @@ class ReinforcementLearningEnv(BaseAviary):
                          ctrl_freq=ctrl_freq,
                          gui=gui,
                          record=record,
-                         obstacles=obstacles,
+                         obstacles=False,
                          user_debug_gui=user_debug_gui,
                          output_folder=output_folder
                          )
@@ -93,6 +91,9 @@ class ReinforcementLearningEnv(BaseAviary):
             baseCollisionShapeIndex=collision_shape_id,
             basePosition=[2, 2, half_extents[2]]  # centre de la boîte à 25 pour que sa base soit à z=0
         )
+
+    def computeElapsedTime(self):
+        return self.step_counter / self.PYB_FREQ
 
     def _actionSpace(self):
         # the action space is a 3 dimensional vector representing the target velocity
@@ -157,9 +158,15 @@ class ReinforcementLearningEnv(BaseAviary):
         distance = self.distance_to_target()
 
         error_radius = 0.01
-        reward = 1/(distance + error_radius) - 0.5
+        reward = (1/(distance + error_radius) - 0.5) / self.CTRL_FREQ
+
+        print(self.DRONE_IDS[0])
+
+        for contact in p.getContactPoints(bodyA=self.DRONE_IDS[0]):
+            print("Contact avec:", contact[2])  # contact[2] est bodyB
 
         if p.getContactPoints(bodyA=self.DRONE_IDS[0]):
+            print('contact')
             reward -= 5000
             self.terminated = True
 
@@ -168,11 +175,14 @@ class ReinforcementLearningEnv(BaseAviary):
         return reward
     
     def _computeTerminated(self):
-        # si on est assez proche de la cible, l'épisode est terminé
-        if self.distance_to_target() < 0.1:
+        if self.computeElapsedTime() > MAX_EPISODE_DURATION:
             self.terminated = True
-            return True
 
+        # si on est assez proche de la cible, l'épisode est terminé
+        # todo : voir pour remettre cette condition
+        #if self.distance_to_target() < 0.1:
+        #    self.terminated = True
+        #    return True
 
         return self.terminated    
     
