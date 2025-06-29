@@ -32,6 +32,8 @@ DEFAULT_COLAB = False
 
 PHYSICS = Physics("pyb")
 
+SAVE_FOLDER = 'models/'
+
 MAX_DURATION = 100
     
 # start position and attitude (orientation)
@@ -43,7 +45,7 @@ INIT_RPYS = np.array([np.zeros((3,))])
 # 2. learn for x steps
 # 3. create visualisation env to visualize model
 
-training_env = ReinforcementLearningEnv(drone_model=DRONE_MODEL,
+dummy_env = ReinforcementLearningEnv(drone_model=DRONE_MODEL,
                     initial_xyzs=INIT_XYZS,
                     initial_rpys=INIT_RPYS,
                     pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
@@ -53,50 +55,51 @@ training_env = ReinforcementLearningEnv(drone_model=DRONE_MODEL,
                     record=DEFAULT_RECORD_VISION,
                     user_debug_gui=DEFAULT_USER_DEBUG_GUI
                     )
+model = PPO("MlpPolicy", env=dummy_env, verbose=1)
+dummy_env.close()
 
-model = PPO("MlpPolicy", env=training_env, verbose=1)
-
-TIMESTEPS_PER_EPOCH = 1000
-
-# environnement
-
+TIMESTEPS_PER_EPOCH = 5000
 
 # simulation
 while True:
     print(f"Training model for {TIMESTEPS_PER_EPOCH} steps...")
-    #model.learn(total_timesteps=TIMESTEPS_PER_EPOCH, progress_bar=True, callback=None)
-
-    eval_env = ReinforcementLearningEnv(drone_model=DRONE_MODEL,
+    training_env = ReinforcementLearningEnv(drone_model=DRONE_MODEL,
                     initial_xyzs=INIT_XYZS,
                     initial_rpys=INIT_RPYS,
                     pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
                     ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,
                     physics=PHYSICS,
-                    gui=True,
+                    gui=False,
                     record=DEFAULT_RECORD_VISION,
                     user_debug_gui=DEFAULT_USER_DEBUG_GUI
                     )
+    model.set_env(env=training_env)
+    model.learn(total_timesteps=TIMESTEPS_PER_EPOCH, progress_bar=True, callback=None)
+    model.save(f"{SAVE_FOLDER}ppo_model_{time.strftime('%Y%m%d_%H%M%S')}")
+    training_env.close()
 
-    action = np.zeros((3,1))
-    START = time.time()
-    terminated = False
-    step = 0
-    while not terminated:
-        obs, reward, terminated, truncated, info = eval_env.step(action)
-        if terminated:
-            exit()
+    for i in range(5):
+        eval_env = ReinforcementLearningEnv(drone_model=DRONE_MODEL,
+                        initial_xyzs=INIT_XYZS,
+                        initial_rpys=INIT_RPYS,
+                        pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
+                        ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,
+                        physics=PHYSICS,
+                        gui=True,
+                        record=DEFAULT_RECORD_VISION,
+                        user_debug_gui=DEFAULT_USER_DEBUG_GUI
+                        )
 
+        action = np.zeros((3,1))
+        START = time.time()
+        terminated = False
+        step = 0
+        while not terminated:
+            obs, reward, terminated, truncated, info = eval_env.step(action)
+            action, _ = model.predict(obs)
 
-        action, _ = model.predict(obs)
-
-        #target_vel = np.array([0.2,0.2,0])
-        #action = np.array(target_vel)
-
-        # affichage de debug
-        #env.render() # todo : remettre le rendering/logging
-
-        # synchronisation de l'affichage de la simulation
-        # seulement si on veut l'interface grahique
-        step += 1
-        sync(step, START, eval_env.CTRL_TIMESTEP)
-    eval_env.close()
+            # synchronisation de l'affichage de la simulation
+            # seulement si on veut l'interface grahique
+            sync(step, START, eval_env.CTRL_TIMESTEP)
+            step += 1
+        eval_env.close()

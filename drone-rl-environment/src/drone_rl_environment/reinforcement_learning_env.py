@@ -89,8 +89,14 @@ class ReinforcementLearningEnv(BaseAviary):
         self.obstacle_id = p.createMultiBody(
             baseMass=0,  # 0 = statique
             baseCollisionShapeIndex=collision_shape_id,
-            basePosition=[2, 2, half_extents[2]]  # centre de la boîte à 25 pour que sa base soit à z=0
+            basePosition=[-1, -1, half_extents[2]]  
         )
+
+    def get_drone_pos(self):
+        return self.pos[0,:] #todo : émuler slam
+    
+    def get_drone_velocity(self):
+        return self.vel[0,:] # todo : émuler slam
 
     def computeElapsedTime(self):
         return self.step_counter / self.PYB_FREQ
@@ -115,10 +121,19 @@ class ReinforcementLearningEnv(BaseAviary):
             The observation space, i.e., an ndarray of shape (NUM_DRONES, 20).
 
         """
+
+        #todo : enlever vieux code
         #### Observation vector ### X        Y        Z       Q1   Q2   Q3   Q4   R       P       Y       VX       VY       VZ       WX       WY       WZ       P0            P1            P2            P3
-        obs_lower_bound = np.array([[-np.inf, -np.inf, 0.,     -1., -1., -1., -1., -np.pi, -np.pi, -np.pi, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, 0.,           0.,           0.,           0.] for i in range(self.NUM_DRONES)])
-        obs_upper_bound = np.array([[np.inf,  np.inf,  np.inf, 1.,  1.,  1.,  1.,  np.pi,  np.pi,  np.pi,  np.inf,  np.inf,  np.inf,  np.inf,  np.inf,  np.inf,  self.MAX_RPM, self.MAX_RPM, self.MAX_RPM, self.MAX_RPM] for i in range(self.NUM_DRONES)])
-        return spaces.Box(low=obs_lower_bound, high=obs_upper_bound, dtype=np.float32)
+        #obs_lower_bound = np.array([[-np.inf, -np.inf, 0.,     -1., -1., -1., -1., -np.pi, -np.pi, -np.pi, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, 0.,           0.,           0.,           0.] for i in range(self.NUM_DRONES)])
+        #obs_upper_bound = np.array([[np.inf,  np.inf,  np.inf, 1.,  1.,  1.,  1.,  np.pi,  np.pi,  np.pi,  np.inf,  np.inf,  np.inf,  np.inf,  np.inf,  np.inf,  self.MAX_RPM, self.MAX_RPM, self.MAX_RPM, self.MAX_RPM] for i in range(self.NUM_DRONES)])
+        #return spaces.Box(low=obs_lower_bound, high=obs_upper_bound, dtype=np.float32)
+
+        return spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(6,),
+            dtype=np.float32,
+        )
 
     def _computeObs(self):
         """Returns the current observation of the environment.
@@ -132,12 +147,20 @@ class ReinforcementLearningEnv(BaseAviary):
 
         """
 
-        return np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
+        # todo : enlever vieux code
+        # state vector =
+        # position (3), quaternion (4), rpy (3), vitesse (3), vitesse angulaire (3), dernière action (RPM des moteurs) (4)
+        #return np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
+
+        observation = np.zeros((6,))
+        observation[0:3] = self.get_drone_pos()
+        observation[3:6] = self.get_drone_velocity()
+        return observation
 
     def _preprocessAction(self, action):
-        obs = self._computeObs()
+        obs = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)]) # todo : remplacer par getdronepos et getdronevelsss
         state = obs[0]
-        target_pos = obs[0,0:3].reshape(-1)
+        target_pos = self.get_drone_pos()
         target_rpy = self.INIT_RPYS[0,:]
         target_vel = action.reshape(-1)
         
@@ -158,19 +181,14 @@ class ReinforcementLearningEnv(BaseAviary):
         distance = self.distance_to_target()
 
         error_radius = 0.01
-        reward = (1/(distance + error_radius) - 0.5) / self.CTRL_FREQ
-
-        print(self.DRONE_IDS[0])
-
-        for contact in p.getContactPoints(bodyA=self.DRONE_IDS[0]):
-            print("Contact avec:", contact[2])  # contact[2] est bodyB
+        reward = (50/(distance + error_radius)) / self.CTRL_FREQ
+        # todo : reward proportionnel à la fréquence de controle de la simulation (pour éviter que ça soit déséquilibré si on change la fréquence)
 
         if p.getContactPoints(bodyA=self.DRONE_IDS[0]):
-            print('contact')
             reward -= 5000
             self.terminated = True
 
-        # todo : reward proportionnel à la fréquence de controle de la simulation (pour éviter que ça soit déséquilibré si on change la fréquence)
+        print(reward)
         
         return reward
     
