@@ -10,9 +10,10 @@ import pybullet as p
 
 # todo : mettre cette constante ailleurs
 MAX_EPISODE_DURATION = 10
+MAX_VELOCITY = 0.5
 
 class ReinforcementLearningEnv(BaseAviary):
-    REWARD_TARGET = np.array([2,2,1])
+    REWARD_TARGET = np.array([1,1,0.5])
 
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
@@ -73,11 +74,11 @@ class ReinforcementLearningEnv(BaseAviary):
         
         self.terminated = False
 
-        self.pid_controller = DSLPIDControl(drone_model=DroneModel("cf2x")) # todo : constantes + mettre ça ailleurs peut-être
+        self.pid_controller = DSLPIDControl(drone_model=DroneModel.CF2X) # todo : constantes + mettre ça ailleurs peut-être
 
         
         # todo : générer les obstacles différemment
-        half_extents = [0.5, 0.5, 1]
+        half_extents = [5, 5, 0.2]
 
         # forme
         collision_shape_id = p.createCollisionShape(
@@ -89,7 +90,7 @@ class ReinforcementLearningEnv(BaseAviary):
         self.obstacle_id = p.createMultiBody(
             baseMass=0,  # 0 = statique
             baseCollisionShapeIndex=collision_shape_id,
-            basePosition=[-1, -1, half_extents[2]]  
+            basePosition=[0, 0, 2] 
         )
 
     def get_drone_pos(self):
@@ -102,10 +103,12 @@ class ReinforcementLearningEnv(BaseAviary):
         return self.step_counter / self.PYB_FREQ
 
     def _actionSpace(self):
+        
+
         # the action space is a 3 dimensional vector representing the target velocity
         return spaces.Box(
-            low=-1,
-            high=1,
+            low=-MAX_VELOCITY,
+            high=MAX_VELOCITY,
             shape=(3,),
             dtype=np.float32,
         )
@@ -127,11 +130,11 @@ class ReinforcementLearningEnv(BaseAviary):
         #obs_lower_bound = np.array([[-np.inf, -np.inf, 0.,     -1., -1., -1., -1., -np.pi, -np.pi, -np.pi, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, 0.,           0.,           0.,           0.] for i in range(self.NUM_DRONES)])
         #obs_upper_bound = np.array([[np.inf,  np.inf,  np.inf, 1.,  1.,  1.,  1.,  np.pi,  np.pi,  np.pi,  np.inf,  np.inf,  np.inf,  np.inf,  np.inf,  np.inf,  self.MAX_RPM, self.MAX_RPM, self.MAX_RPM, self.MAX_RPM] for i in range(self.NUM_DRONES)])
         #return spaces.Box(low=obs_lower_bound, high=obs_upper_bound, dtype=np.float32)
-
+       
         return spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(6,),
+            shape=(9,),
             dtype=np.float32,
         )
 
@@ -152,9 +155,10 @@ class ReinforcementLearningEnv(BaseAviary):
         # position (3), quaternion (4), rpy (3), vitesse (3), vitesse angulaire (3), dernière action (RPM des moteurs) (4)
         #return np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
 
-        observation = np.zeros((6,))
+        observation = np.zeros((9,))
         observation[0:3] = self.get_drone_pos()
         observation[3:6] = self.get_drone_velocity()
+        observation[6:9] = np.linalg.norm(self.REWARD_TARGET - self.get_drone_pos())
         return observation
 
     def _preprocessAction(self, action):
@@ -185,10 +189,9 @@ class ReinforcementLearningEnv(BaseAviary):
         # todo : reward proportionnel à la fréquence de controle de la simulation (pour éviter que ça soit déséquilibré si on change la fréquence)
 
         if p.getContactPoints(bodyA=self.DRONE_IDS[0]):
+            print('collision')
             reward -= 5000
             self.terminated = True
-
-        print(reward)
         
         return reward
     
