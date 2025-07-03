@@ -1,21 +1,19 @@
-[project]
-name = "drone-rl-environment"
-version = "0.1.0"
-description = ""
-authors = [
-    {name = "Raynobrak",email = "lcs.charbonnier@gmail.com"}
-]
-readme = "README.md"
-dependencies = [
-]
-
 [tool.poetry]
-packages = [{include = "drone_rl_environment", from = "src"}]
+name        = "drone-rl-environment"
+version     = "0.1.0"
+description = ""
+authors     = ["Raynobrak <lcs.charbonnier@gmail.com>"]
+packages    = [{ include = "drone_rl_environment", from = "src" }]
+
+[tool.poetry.dependencies]
+python   = "^3.10"
+tqdm     = "^4.67.1"
+numpy    = "1.24.*"
+pybullet = "3.2.5"
+gym-pybullet-drones = { path = "libraries/gym-pybullet-drones", develop = true }
+setuptools = "^80.9.0"
+stable-baselines3 = {extras = ["extra"], version = "^2.6.0"}
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.dependencies]
-python = "^3.10"
-gym-pybullet-drones = { path = "./libraries/gym-pybullet-drones", develop = true }
