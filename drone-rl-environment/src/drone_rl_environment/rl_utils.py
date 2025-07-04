@@ -13,17 +13,6 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics
 from reinforcement_learning_env import *
 from gym_pybullet_drones.utils.utils import sync
 
-# todo : où mettre ces paramètres ?
-DRONE_MODEL = DroneModel("cf2x")
-DEFAULT_NUM_DRONES = 1
-DEFAULT_RECORD_VISION = False
-DEFAULT_PLOT = True
-DEFAULT_USER_DEBUG_GUI = False
-DEFAULT_SIMULATION_FREQ_HZ = 240
-DEFAULT_CONTROL_FREQ_HZ = 48
-DEFAULT_OUTPUT_FOLDER = 'results'
-DEFAULT_COLAB = False
-
 # position de départ et attitude (roll, pitch, yaw)
 INIT_XYZS = np.array([[0,0,0.2]])
 INIT_RPYS = np.array([np.zeros((3,))])
@@ -31,18 +20,13 @@ INIT_RPYS = np.array([np.zeros((3,))])
 PHYSICS = Physics("pyb")
 
 SAVE_FOLDER = 'models/'
-TIMESTEPS_PER_EPOCH = 500
+TIMESTEPS_PER_EPOCH = 100
 
 def create_environment(evaluation=False):
-    environment = ReinforcementLearningEnv(drone_model=DRONE_MODEL,
-                    initial_xyzs=INIT_XYZS,
-                    initial_rpys=INIT_RPYS,
-                    pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
-                    ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,
-                    physics=PHYSICS,
+    environment = ReinforcementLearningEnv(
+                    initial_xyz_position=INIT_XYZS,
+                    initial_rpy_attitude=INIT_RPYS,
                     gui=evaluation,
-                    record=DEFAULT_RECORD_VISION,
-                    user_debug_gui=DEFAULT_USER_DEBUG_GUI
                     )
     return environment
 
