@@ -17,9 +17,11 @@ DRONE_MODEL = DroneModel.CF2X
 PYBULLET_UPDATE_FREQ = 240 # màj physique par seconde
 ENV_STEP_FREQ = 48 # appels à env.step() par seconde
 DEFAULT_OUTPUT_FOLDER = 'results'
+LIDAR_RAYS_COUNT = 102
+LIDAR_MAX_DISTANCE = 10
 
 class BaseRLSingleDroneEnv(BaseAviary):
-    REWARD_TARGET = np.array([1,1,0.5])
+    REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
 
     # Initialise l'environnement
     def __init__(self,
@@ -50,14 +52,16 @@ class BaseRLSingleDroneEnv(BaseAviary):
                          )
         
         self.lidar_sensor = LidarSensor(
-            freq=60,
+            freq=20,
             pybullet_client_id=self.getPyBulletClient(),
             pybullet_drone_id=self.getDroneIds()[0],
-            nb_angles=100,
-            max_distance=10,
+            nb_angles=LIDAR_RAYS_COUNT - 2,
+            max_distance=LIDAR_MAX_DISTANCE,
             show_debug_rays=True
         )
-        
+
+        assert(LIDAR_RAYS_COUNT == self.lidar_sensor.rays_count())
+
         self.terminated = False # todo : gérer la termination autrement
 
         self.pid_controller = DSLPIDControl(drone_model=self.DRONE_MODEL) # todo : constantes + mettre ça ailleurs peut-être
@@ -82,21 +86,30 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
     # retourne la position réelle du drone dans la simulation (ground-truth)
     def get_real_drone_pos(self):
-        return self.pos[0,:] #todo : émuler slam
+        return self.pos[0,:] 
     
     # retourne la position estimée du drone dans la simulation
     # par défaut, c'est la position réelle. en cas d'implémentation d'un SLAM, surcharger cette méthode
     def get_estimated_drone_pos(self):
-        return self.get_real_drone_pos()
+        return self.get_real_drone_pos() #todo : émuler slam
     
     # retourne la vitesse réelle (vecteur 3D) du drone dans la simulation (ground-truth)
     def get_real_drone_velocity(self):
-        return self.vel[0,:] # todo : émuler slam
+        return self.vel[0,:]
+
     
     # retourne la vitesse (vecteur 3D) estimée du drone dans la simulation
     # par défaut, c'est la vitesse réelle. en cas d'implémentation d'un SLAM, surcharger cette méthode
     def get_estimated_drone_velocity(self):
-        return self.get_real_drone_velocity()
+        return self.get_real_drone_velocity() # todo : émuler slam
+    
+        # retourne l'orientation réelle du drone en RPY (roll, pitch, yaw)
+    def get_real_drone_attitude(self):
+        return self.rpy[0,:]
+    
+    # retourne une estimation de l'attitude du drone en RPY (roll, pitch, yaw)
+    def get_estimated_drone_attitude(self):
+        return self.get_real_drone_attitude() # todo : émuler slam
 
     # retourne le temps écoulé depuis le début de l'épisode
     def get_elapsed_time(self):
@@ -106,7 +119,6 @@ class BaseRLSingleDroneEnv(BaseAviary):
         # l'espace d'action est un vecteur en 3 dimensions censé représenter la vitesse cible
         # cette information est ensuite passée au contrôleur PID qui se chargera d'ajuster
         # les RPMs des quatres moteurs pour atteindre la vélocité désirée.
-        #
         return spaces.Box(
             low=-self.max_drone_velocity,
             high=self.max_drone_velocity,
@@ -116,12 +128,17 @@ class BaseRLSingleDroneEnv(BaseAviary):
     
     def _observationSpace(self):
         # l'espace d'observation est un vecteur représentant l'état actuel du drone et de son environment
-        return spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(9,),
-            dtype=np.float32,
-        )
+        # en l'occurence, il s'agit de sa position, sa vitesse et son orientation ainsi que des N scans du capteur LiDAR
+        low = np.concatenate([
+            np.full(9, -np.inf),
+            np.zeros(LIDAR_RAYS_COUNT)
+        ])
+        high = np.concatenate([
+            np.full(9, np.inf),
+            np.full(LIDAR_RAYS_COUNT, LIDAR_MAX_DISTANCE)
+        ])
+
+        return spaces.Box(low=low, high=high, dtype=np.float32)
 
     # Retourne une observation de l'environnement (état du drone et de ses capteurs)
     def _computeObs(self):
@@ -130,7 +147,10 @@ class BaseRLSingleDroneEnv(BaseAviary):
         observation = np.zeros(self._observationSpace().shape)
         observation[0:3] = self.get_estimated_drone_pos()
         observation[3:6] = self.get_estimated_drone_velocity()
-        observation[6:9] = np.linalg.norm(self.REWARD_TARGET - self.get_estimated_drone_pos())
+        observation[6:9] = self.get_estimated_drone_attitude()
+
+        observation[9:9 + LIDAR_RAYS_COUNT] = self.lidar_sensor.read_distances()
+
         return observation
 
     # Méthode appellée automatiquement par la classe parente.
@@ -166,8 +186,10 @@ class BaseRLSingleDroneEnv(BaseAviary):
         distance = self.distance_to_target()
 
         error_radius = 0.01
-        reward = (50/(distance + error_radius)) / self.CTRL_FREQ
+        #reward = (50/(distance + error_radius)) / self.CTRL_FREQ
         # todo : reward proportionnel à la fréquence de controle de la simulation (pour éviter que ça soit déséquilibré si on change la fréquence)
+
+        reward = np.linalg.norm(self.get_estimated_drone_pos() - self.INIT_XYZS[0,:]) / self.CTRL_FREQ
 
         # todo : réactiver les collisions
         if p.getContactPoints(bodyA=self.DRONE_IDS[0]):
