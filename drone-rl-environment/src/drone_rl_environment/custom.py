@@ -12,7 +12,6 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics
 
 from stable_baselines3 import PPO,DDPG
 
-from reinforcement_learning_env import *
 from rl_utils import *
 
 model = create_model()

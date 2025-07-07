@@ -8,9 +8,8 @@ import time
 import os
 from stable_baselines3 import PPO,DDPG
 
-from reinforcement_learning_env import *
+from custom_environments.BaseRLSingleDroneEnv import *
 from gym_pybullet_drones.utils.enums import DroneModel, Physics
-from reinforcement_learning_env import *
 from gym_pybullet_drones.utils.utils import sync
 
 # position de départ et attitude (roll, pitch, yaw)
@@ -23,7 +22,7 @@ SAVE_FOLDER = 'models/'
 TIMESTEPS_PER_EPOCH = 100
 
 def create_environment(evaluation=False):
-    environment = ReinforcementLearningEnv(
+    environment = BaseRLSingleDroneEnv(
                     initial_xyz_position=INIT_XYZS,
                     initial_rpy_attitude=INIT_RPYS,
                     gui=evaluation,
@@ -33,7 +32,7 @@ def create_environment(evaluation=False):
 # créé un nouveau modèle de RL
 def create_model(env=None):
     if env is None:
-        dummy_env = ReinforcementLearningEnv() # si aucun environnement n'est spécifié, créé un environnement artificiel qui est immédiatement détruit. c'est juste pour que ça compile
+        dummy_env = BaseRLSingleDroneEnv() # si aucun environnement n'est spécifié, créé un environnement artificiel qui est immédiatement détruit. c'est juste pour que ça compile
         model = DDPG('MlpPolicy', env=dummy_env, verbose=1)
         dummy_env.close()
         return model

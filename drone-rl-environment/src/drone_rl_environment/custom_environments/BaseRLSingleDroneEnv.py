@@ -6,6 +6,8 @@ from gym_pybullet_drones.utils.enums import DroneModel
 
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 
+from lidar.LidarSensor import LidarSensor
+
 import pybullet as p
 
 DEFAULT_MAX_EPISODE_DURATION = 10 # secondes
@@ -16,7 +18,7 @@ PYBULLET_UPDATE_FREQ = 240 # màj physique par seconde
 ENV_STEP_FREQ = 48 # appels à env.step() par seconde
 DEFAULT_OUTPUT_FOLDER = 'results'
 
-class ReinforcementLearningEnv(BaseAviary):
+class BaseRLSingleDroneEnv(BaseAviary):
     REWARD_TARGET = np.array([1,1,0.5])
 
     # Initialise l'environnement
@@ -31,7 +33,7 @@ class ReinforcementLearningEnv(BaseAviary):
         self.max_drone_velocity = max_drone_velocity
         self.max_episode_duration = max_episode_duration
 
-        self.rng = np.random.default_rng(seed=None)
+        self.rng = np.random.default_rng(seed=None) # todo : faire autrement
 
         super().__init__(drone_model=DRONE_MODEL,
                          num_drones=1,
@@ -46,6 +48,15 @@ class ReinforcementLearningEnv(BaseAviary):
                          user_debug_gui=False,
                          output_folder=DEFAULT_OUTPUT_FOLDER
                          )
+        
+        self.lidar_sensor = LidarSensor(
+            freq=60,
+            pybullet_client_id=self.getPyBulletClient(),
+            pybullet_drone_id=self.getDroneIds()[0],
+            nb_angles=100,
+            max_distance=10,
+            show_debug_rays=True
+        )
         
         self.terminated = False # todo : gérer la termination autrement
 
@@ -67,7 +78,7 @@ class ReinforcementLearningEnv(BaseAviary):
             baseCollisionShapeIndex=col_shape,
             basePosition=[-self.rng.uniform(1,5), 0, half_extents[2] * 2],
             physicsClientId=self.CLIENT
-        )
+        )    
 
     # retourne la position réelle du drone dans la simulation (ground-truth)
     def get_real_drone_pos(self):
@@ -114,7 +125,9 @@ class ReinforcementLearningEnv(BaseAviary):
 
     # Retourne une observation de l'environnement (état du drone et de ses capteurs)
     def _computeObs(self):
-        observation = np.zeros((9,))
+        data = self.lidar_sensor.update(1. / self.CTRL_FREQ)
+
+        observation = np.zeros(self._observationSpace().shape)
         observation[0:3] = self.get_estimated_drone_pos()
         observation[3:6] = self.get_estimated_drone_velocity()
         observation[6:9] = np.linalg.norm(self.REWARD_TARGET - self.get_estimated_drone_pos())
