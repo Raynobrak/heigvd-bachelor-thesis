@@ -64,7 +64,7 @@ class LidarSensor:
     def update(self, elapsed_time):
         self.time_to_next_update -= elapsed_time
         if self.time_to_next_update < 0:
-            self.time_to_next_update += self.time_between_updates()
+            self.time_to_next_update = self.time_between_updates()
             self._compute_internal_data()
             assert(len(self.lidar_data) == self.rays_count())
 
