@@ -10,3 +10,4 @@ drone-rl-environment/libraries/gym-pybullet-drones/
 /drone-rl-environment/models
 /drone-rl-environment/src/drone_rl_environment/custom_environments/__pycache__
 /drone-rl-environment/src/drone_rl_environment/lidar/__pycache__
+/drone-rl-environment/ppo_drone_tensorboard
