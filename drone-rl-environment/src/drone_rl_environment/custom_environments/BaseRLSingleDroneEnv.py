@@ -14,11 +14,12 @@ DEFAULT_MAX_EPISODE_DURATION = 10 # secondes
 DEFAULT_MAX_VELOCITY = 0.5 # mètres/seconde
 
 DRONE_MODEL = DroneModel.CF2X
-PYBULLET_UPDATE_FREQ = 240 # màj physique par seconde
-ENV_STEP_FREQ = 48 # appels à env.step() par seconde
+PYBULLET_UPDATE_FREQ = 240 # màj physique par seconde, même valeur que l'environnement de base BaseAviary (provenant du projet gym-pybullet-drones original)
+ENV_STEP_FREQ = 10 # appels à env.step() par seconde
 DEFAULT_OUTPUT_FOLDER = 'results'
 LIDAR_RAYS_COUNT = 102
 LIDAR_MAX_DISTANCE = 10
+LIDAR_FREQUENCY = 1000
 
 class BaseRLSingleDroneEnv(BaseAviary):
     REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
@@ -52,37 +53,52 @@ class BaseRLSingleDroneEnv(BaseAviary):
                          )
         
         self.lidar_sensor = LidarSensor(
-            freq=20,
+            freq=LIDAR_FREQUENCY,
             pybullet_client_id=self.getPyBulletClient(),
             pybullet_drone_id=self.getDroneIds()[0],
             nb_angles=LIDAR_RAYS_COUNT - 2,
             max_distance=LIDAR_MAX_DISTANCE,
-            show_debug_rays=True
+            show_debug_rays=False
         )
 
         assert(LIDAR_RAYS_COUNT == self.lidar_sensor.rays_count())
 
-        self.terminated = False # todo : gérer la termination autrement
-
-        self.pid_controller = DSLPIDControl(drone_model=self.DRONE_MODEL) # todo : constantes + mettre ça ailleurs peut-être
+        self.custom_reset()
 
         self.obstacles_ids = []
+
+    def custom_reset(self):
+        self.pid_controller = DSLPIDControl(drone_model=self.DRONE_MODEL) # todo : constantes + mettre ça ailleurs peut-être
+
+    def reset(self, seed : int = None, options : dict = None):
+        self.custom_reset()
+        return super().reset(seed, options)
     
     # Méthode appelée par la classe mère (BaseAviary) au moment de reset() l'environnement
     # Ajoute les obstacles dans l'environnement
     def _addObstacles(self):
-        half_extents = [1, 1, 0.2]
+        pass
+
+    def add_fixed_obstacle(self, center_pos, size, rgba_color=[1,0,0,0.3]):
+        center_pos = np.array(center_pos)
+        size = np.array(size)
+
+        half_size = size / 2
         col_shape = p.createCollisionShape(
             shapeType=p.GEOM_BOX,
-            halfExtents=half_extents,
+            halfExtents=half_size,
             physicsClientId=self.CLIENT
         )
+
+        visual_shape = p.createVisualShape(p.GEOM_BOX, halfExtents=half_size, rgbaColor=rgba_color)
+
         body_id = p.createMultiBody(
             baseMass=0,
             baseCollisionShapeIndex=col_shape,
-            basePosition=[-self.rng.uniform(1,5), 0, half_extents[2] * 2],
+            baseVisualShapeIndex=visual_shape,
+            basePosition=center_pos,
             physicsClientId=self.CLIENT
-        )    
+        )
 
     # retourne la position réelle du drone dans la simulation (ground-truth)
     def get_real_drone_pos(self):
@@ -96,7 +112,6 @@ class BaseRLSingleDroneEnv(BaseAviary):
     # retourne la vitesse réelle (vecteur 3D) du drone dans la simulation (ground-truth)
     def get_real_drone_velocity(self):
         return self.vel[0,:]
-
     
     # retourne la vitesse (vecteur 3D) estimée du drone dans la simulation
     # par défaut, c'est la vitesse réelle. en cas d'implémentation d'un SLAM, surcharger cette méthode
@@ -113,7 +128,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
     # retourne le temps écoulé depuis le début de l'épisode
     def get_elapsed_time(self):
-        return self.step_counter / self.PYB_FREQ
+        return self.step_counter * self.PYB_TIMESTEP
 
     def _actionSpace(self):
         # l'espace d'action est un vecteur en 3 dimensions censé représenter la vitesse cible
@@ -180,43 +195,23 @@ class BaseRLSingleDroneEnv(BaseAviary):
         current_pos = self.get_estimated_drone_pos()
         distance = np.linalg.norm(self.REWARD_TARGET - current_pos)
         return distance
+    
+    # retourne True si le drone est en contact avec un obstacle, sinon False
+    def check_for_collisions(self):
+        if p.getContactPoints(bodyA=self.DRONE_IDS[0]):
+            return True
+        return False
 
     # Calcule le reward en fonction de l'état actuel de l'environnement
     def _computeReward(self):
-        distance = self.distance_to_target()
-
-        error_radius = 0.01
-        #reward = (50/(distance + error_radius)) / self.CTRL_FREQ
-        # todo : reward proportionnel à la fréquence de controle de la simulation (pour éviter que ça soit déséquilibré si on change la fréquence)
-
-        reward = np.linalg.norm(self.get_estimated_drone_pos() - self.INIT_XYZS[0,:]) / self.CTRL_FREQ
-
-        # todo : réactiver les collisions
-        if p.getContactPoints(bodyA=self.DRONE_IDS[0]):
-            print('collision')
-            reward -= 5000
-            self.terminated = True
-        
-        return reward
+        return 0
     
     # Retourne True si l'épisode doit être considéré comme étant terminé.
-    # Suite au crash du drone (collision) par exemple ou au dépassement du temps de vol.
     def _computeTerminated(self):
-        if self.get_elapsed_time() > self.max_episode_duration:
-            self.terminated = True
-
-        # si on est assez proche de la cible, l'épisode est terminé
-        # todo : voir pour remettre cette condition
-        #if self.distance_to_target() < 0.1:
-        #    self.terminated = True
-        #    return True
-
-        return self.terminated    
-    
+        return self.check_for_collisions()    
 
     def _computeTruncated(self):
-        # todo : faire correctement. terminated = crash ou réussite, trunacted = dépassement du temps ou sortie des limites de la simulation
-        return False
+        return self.get_elapsed_time() > self.max_episode_duration
     
     def _computeInfo(self):
         return {'info':None}
