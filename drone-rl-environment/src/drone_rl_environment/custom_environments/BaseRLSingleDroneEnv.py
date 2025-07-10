@@ -168,7 +168,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
         ])
         high = np.concatenate([
             np.full(9, np.inf),
-            np.full(self.lidar_rays_count, self.lidar_max_distance) # todo : voir pour normaliser la distance
+            np.full(self.lidar_rays_count, 1) # todo : voir pour normaliser la distance
         ])
 
         return spaces.Box(low=low, high=high, dtype=np.float32)
