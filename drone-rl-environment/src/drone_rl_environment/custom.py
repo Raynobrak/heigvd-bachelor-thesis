@@ -17,26 +17,21 @@ from rl_utils import *
 
 print(os.getcwd())
 
-LOAD_MODEL = False
+RUN_NAME = 'ignoremejusttesting'
+STEP_PER_ITERATION = 16384
 
-if LOAD_MODEL:
-    env = FlyAwayCeilingEnv()
-    model = load_model(r'C:\Users\lcsch\OneDrive - HESSO\Semestre6\TB\heigvd-bachelor-thesis\drone-rl-environment\models\ppo_model_20250708_103119.zip', env=FlyAwayCeilingEnv(), use_default_folder=False)
-    env.close()
-    if model is None:
-        print('Une erreur est survenue lors du chargement du modèle.')
-        exit()
-else:
-    model = create_model()
-
+#model = load_model('ppo-nightrun2_ts-18006016_10-13-01-12.zip')
+model = create_model()
 
 # simulation
+i = 0
 while True:
+    i += 1
     # entraînement du modèle
-    train_model_in_environment(model)
-    
+    train_model_in_environment(model, timesteps=STEP_PER_ITERATION, tb_run_name=RUN_NAME)
+
     # sauvegarde
-    #save_model(model, prefix='ppo_night_run_08-07')
+    #save_model(model, prefix=RUN_NAME+'_ts-'+str(i * STEP_PER_ITERATION))
 
     # visualisation de la performance du drone dans une GUI
     visualize_model_in_environment(model)

@@ -10,22 +10,28 @@ from lidar.LidarSensor import LidarSensor
 
 import pybullet as p
 
+DRONE_MODEL = DroneModel.CF2X
+
 DEFAULT_MAX_EPISODE_DURATION = 10 # secondes
 DEFAULT_MAX_VELOCITY = 0.5 # mètres/seconde
 
-DRONE_MODEL = DroneModel.CF2X
-PYBULLET_UPDATE_FREQ = 240 # màj physique par seconde, même valeur que l'environnement de base BaseAviary (provenant du projet gym-pybullet-drones original)
-ENV_STEP_FREQ = 10 # appels à env.step() par seconde
+DEFAULT_PYBULLET_PHYSICS_FREQ = 240 # màj physique par seconde, même valeur que l'environnement de base BaseAviary (provenant du projet gym-pybullet-drones original)
+DEFAULT_ENV_STEP_FREQ = 60 # appels à env.step() par seconde
 DEFAULT_OUTPUT_FOLDER = 'results'
-LIDAR_RAYS_COUNT = 102
-LIDAR_MAX_DISTANCE = 10
-LIDAR_FREQUENCY = 1000
+DEFAULT_LIDAR_RAYS_COUNT = 6
+DEFAULT_LIDAR_MAX_DISTANCE = 10
+DEFAULT_LIDAR_FREQUENCY = 1000
 
 class BaseRLSingleDroneEnv(BaseAviary):
     REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
 
     # Initialise l'environnement
     def __init__(self,
+                 pybullet_physics_freq=DEFAULT_PYBULLET_PHYSICS_FREQ,
+                 env_step_freq=DEFAULT_ENV_STEP_FREQ,
+                 lidar_rays_count=DEFAULT_LIDAR_RAYS_COUNT,
+                 lidar_max_distance=DEFAULT_LIDAR_MAX_DISTANCE,
+                 lidar_freq=DEFAULT_LIDAR_FREQUENCY,
                  initial_xyz_position=None,
                  initial_rpy_attitude=None,
                  max_drone_velocity=DEFAULT_MAX_VELOCITY,
@@ -33,42 +39,50 @@ class BaseRLSingleDroneEnv(BaseAviary):
                  gui=False,
                  ):
         
+        self.lidar_rays_count = lidar_rays_count
+        self.lidar_max_distance = lidar_max_distance
+        self.lidar_freq = lidar_freq
+        
         self.max_drone_velocity = max_drone_velocity
         self.max_episode_duration = max_episode_duration
 
         self.rng = np.random.default_rng(seed=None) # todo : faire autrement
-
         super().__init__(drone_model=DRONE_MODEL,
                          num_drones=1,
                          neighbourhood_radius=0,
                          initial_xyzs=initial_xyz_position,
                          initial_rpys=initial_rpy_attitude,
-                         pyb_freq=PYBULLET_UPDATE_FREQ,
-                         ctrl_freq=ENV_STEP_FREQ,
+                         pyb_freq=pybullet_physics_freq,
+                         ctrl_freq=env_step_freq,
                          gui=gui,
                          record=False,
                          obstacles=True,
                          user_debug_gui=False,
                          output_folder=DEFAULT_OUTPUT_FOLDER
                          )
-        
-        self.lidar_sensor = LidarSensor(
-            freq=LIDAR_FREQUENCY,
-            pybullet_client_id=self.getPyBulletClient(),
-            pybullet_drone_id=self.getDroneIds()[0],
-            nb_angles=LIDAR_RAYS_COUNT - 2,
-            max_distance=LIDAR_MAX_DISTANCE,
-            show_debug_rays=False
-        )
-
-        assert(LIDAR_RAYS_COUNT == self.lidar_sensor.rays_count())
+                
+        self.lidar_sensor = self.build_lidar_sensor()
+        assert(self.lidar_rays_count == self.lidar_sensor.rays_count())
 
         self.custom_reset()
 
-        self.obstacles_ids = []
+    def build_lidar_sensor(self):
+        return LidarSensor(
+            freq=self.lidar_freq,
+            pybullet_client_id=self.getPyBulletClient(),
+            pybullet_drone_id=self.getDroneIds()[0],
+            nb_angles=self.lidar_rays_count - 2,
+            max_distance=self.lidar_max_distance,
+            show_debug_rays=False
+        )
+
+    def specific_reset(self):
+        print('not implemented')
 
     def custom_reset(self):
         self.pid_controller = DSLPIDControl(drone_model=self.DRONE_MODEL) # todo : constantes + mettre ça ailleurs peut-être
+        self.time_elapsed_text_id = None
+        self.specific_reset()
 
     def reset(self, seed : int = None, options : dict = None):
         self.custom_reset()
@@ -99,6 +113,10 @@ class BaseRLSingleDroneEnv(BaseAviary):
             basePosition=center_pos,
             physicsClientId=self.CLIENT
         )
+
+        # todo : voir pour utiliser une texture
+        #tex_id = p.loadTexture(r'C:\Users\lcsch\OneDrive - HESSO\Semestre6\TB\heigvd-bachelor-thesis\drone-rl-environment\src\drone_rl_environment\texture.png')
+        #p.changeVisualShape(body_id, -1, textureUniqueId=tex_id)
 
     # retourne la position réelle du drone dans la simulation (ground-truth)
     def get_real_drone_pos(self):
@@ -146,11 +164,11 @@ class BaseRLSingleDroneEnv(BaseAviary):
         # en l'occurence, il s'agit de sa position, sa vitesse et son orientation ainsi que des N scans du capteur LiDAR
         low = np.concatenate([
             np.full(9, -np.inf),
-            np.zeros(LIDAR_RAYS_COUNT)
+            np.zeros(self.lidar_rays_count)
         ])
         high = np.concatenate([
             np.full(9, np.inf),
-            np.full(LIDAR_RAYS_COUNT, LIDAR_MAX_DISTANCE)
+            np.full(self.lidar_rays_count, self.lidar_max_distance) # todo : voir pour normaliser la distance
         ])
 
         return spaces.Box(low=low, high=high, dtype=np.float32)
@@ -159,12 +177,18 @@ class BaseRLSingleDroneEnv(BaseAviary):
     def _computeObs(self):
         data = self.lidar_sensor.update(1. / self.CTRL_FREQ)
 
+        if self.GUI:
+            if self.time_elapsed_text_id is not None:
+                p.removeUserDebugItem(self.time_elapsed_text_id)
+            self.time_elapsed_text_id = p.addUserDebugText(str(round(self.get_elapsed_time(),1)) + ' / ' + str(round(self.max_episode_duration,1)) + ' seconds.', self.get_real_drone_pos(), textColorRGB=[0, 1, 0], textSize=1.5)
+
         observation = np.zeros(self._observationSpace().shape)
         observation[0:3] = self.get_estimated_drone_pos()
         observation[3:6] = self.get_estimated_drone_velocity()
         observation[6:9] = self.get_estimated_drone_attitude()
 
-        observation[9:9 + LIDAR_RAYS_COUNT] = self.lidar_sensor.read_distances()
+        # todo : problème au niveau de la normalisation -> l'espace d'observation ne prends pas ça en compte
+        observation[9:9 + self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance
 
         return observation
 

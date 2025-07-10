@@ -3,7 +3,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 # Représente un capteur LiDAR simulé.
-# le capteur LIDAR scan les angles suivants :
+# le capteur LIDAR scanne les angles suivants :
 # - 360° autour du drone
 # - directement en-dessous du drone
 # - directement au-dessus du drone
