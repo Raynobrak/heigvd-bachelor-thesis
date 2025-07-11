@@ -21,22 +21,26 @@ INIT_XYZS = np.array([[0,0,0.2]])
 INIT_RPYS = np.array([np.zeros((3,))])
 
 SLSH = '\\'
-SAVE_FOLDER = r".\models"+SLSH
+SAVE_FOLDER = r".\models"+SLSH # todo : changer
 TIMESTEPS_PER_EPOCH = 4096
 STATS_WINDOW_SIZE = 20
 TENSORBOARD_LOGS_FOLDER = "./tensorboard-logs/"
 
 def create_environment(evaluation=False):
     environment = FlyAwayTunnelEnv(
+                    enable_random_tunnel_rotation=True,
                     initial_xyz_position=INIT_XYZS,
                     initial_rpy_attitude=INIT_RPYS,
                     gui=evaluation,
-                    tunnel_width=2,tunnel_height=2
+                    tunnel_width=1,
+                    tunnel_height=1,
+                    lidar_rays_count=10, # 8 à 360° + 2 verticaux (haut et bas)
+                    enable_lidar_rays_debug=False
                     )
     return environment #todo VecEnv + VecMonitor wrapper avec make_vec_env
 
 def get_dummy_env():
-    env = FlyAwayTunnelEnv()
+    env = create_environment(evaluation=False)
     env.close()
     return env
 
@@ -70,7 +74,7 @@ def create_model():
 def load_model(filename, use_default_folder=True):
     path = (SAVE_FOLDER + filename) if use_default_folder else filename
 
-    path = Path.cwd() / 'models' / filename
+    path = Path.cwd() / 'models' / filename # todo : faire ça proprement
 
     if path.exists():
         return PPO.load(path, env=get_dummy_env())

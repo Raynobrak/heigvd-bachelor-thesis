@@ -17,10 +17,10 @@ from rl_utils import *
 
 print(os.getcwd())
 
-RUN_NAME = 'ignoremejusttesting'
-STEP_PER_ITERATION = 16384
+RUN_NAME = 'test-run-tunnel'
+STEP_PER_ITERATION = 4096
 
-#model = load_model('ppo-nightrun2_ts-18006016_10-13-01-12.zip')
+#model = load_model('ppo-tunnel-nightrun_ts-21037056_11-11-50-02.zip')
 model = create_model()
 
 # simulation
@@ -28,7 +28,7 @@ i = 0
 while True:
     i += 1
     # entraînement du modèle
-    train_model_in_environment(model, timesteps=STEP_PER_ITERATION, tb_run_name=RUN_NAME)
+    #train_model_in_environment(model, timesteps=STEP_PER_ITERATION, tb_run_name=RUN_NAME)
 
     # sauvegarde
     #save_model(model, prefix=RUN_NAME+'_ts-'+str(i * STEP_PER_ITERATION))

@@ -16,11 +16,12 @@ DEFAULT_MAX_EPISODE_DURATION = 10 # secondes
 DEFAULT_MAX_VELOCITY = 0.5 # mètres/seconde
 
 DEFAULT_PYBULLET_PHYSICS_FREQ = 240 # màj physique par seconde, même valeur que l'environnement de base BaseAviary (provenant du projet gym-pybullet-drones original)
-DEFAULT_ENV_STEP_FREQ = 60 # appels à env.step() par seconde
+DEFAULT_ENV_STEP_FREQ = 120 # appels à env.step() par seconde
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_LIDAR_RAYS_COUNT = 6
 DEFAULT_LIDAR_MAX_DISTANCE = 10
-DEFAULT_LIDAR_FREQUENCY = 1000
+DEFAULT_LIDAR_FREQUENCY = DEFAULT_ENV_STEP_FREQ
+DEFAULT_ENABLE_LIDAR_RAYS = False
 
 class BaseRLSingleDroneEnv(BaseAviary):
     REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
@@ -32,6 +33,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
                  lidar_rays_count=DEFAULT_LIDAR_RAYS_COUNT,
                  lidar_max_distance=DEFAULT_LIDAR_MAX_DISTANCE,
                  lidar_freq=DEFAULT_LIDAR_FREQUENCY,
+                 enable_lidar_rays_debug= DEFAULT_ENABLE_LIDAR_RAYS,
                  initial_xyz_position=None,
                  initial_rpy_attitude=None,
                  max_drone_velocity=DEFAULT_MAX_VELOCITY,
@@ -42,6 +44,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
         self.lidar_rays_count = lidar_rays_count
         self.lidar_max_distance = lidar_max_distance
         self.lidar_freq = lidar_freq
+        self.enable_lidar_rays_debug = enable_lidar_rays_debug
         
         self.max_drone_velocity = max_drone_velocity
         self.max_episode_duration = max_episode_duration
@@ -73,7 +76,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
             pybullet_drone_id=self.getDroneIds()[0],
             nb_angles=self.lidar_rays_count - 2,
             max_distance=self.lidar_max_distance,
-            show_debug_rays=False
+            show_debug_rays=self.enable_lidar_rays_debug
         )
 
     def specific_reset(self):
@@ -93,7 +96,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
     def _addObstacles(self):
         pass
 
-    def add_fixed_obstacle(self, center_pos, size, rgba_color=[1,0,0,0.3]):
+    def add_fixed_obstacle(self, center_pos, size, rgba_color=[1,0,0,0.3], rotation_rpy=[0,0,0]):
         center_pos = np.array(center_pos)
         size = np.array(size)
 
@@ -111,7 +114,8 @@ class BaseRLSingleDroneEnv(BaseAviary):
             baseCollisionShapeIndex=col_shape,
             baseVisualShapeIndex=visual_shape,
             basePosition=center_pos,
-            physicsClientId=self.CLIENT
+            physicsClientId=self.CLIENT,
+            baseOrientation=p.getQuaternionFromEuler(rotation_rpy)
         )
 
         # todo : voir pour utiliser une texture
@@ -168,7 +172,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
         ])
         high = np.concatenate([
             np.full(9, np.inf),
-            np.full(self.lidar_rays_count, 1) # todo : voir pour normaliser la distance
+            np.full(self.lidar_rays_count, self.lidar_max_distance) # todo : voir pour normaliser la distance
         ])
 
         return spaces.Box(low=low, high=high, dtype=np.float32)
