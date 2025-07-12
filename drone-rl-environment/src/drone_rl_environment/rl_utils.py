@@ -14,6 +14,7 @@ from stable_baselines3.common.env_util import make_vec_env
 
 from custom_environments.FlyAwayCeilingEnv import *
 from custom_environments.FlyAwayTunnelEnv import *
+from custom_environments.Action import *
 from gym_pybullet_drones.utils.utils import sync
 
 # position de départ et attitude (roll, pitch, yaw)
@@ -118,23 +119,24 @@ def visualize_model_in_environment(model, num_episodes=5):
             obs, reward, terminated, truncated, info = eval_env.step(action)
             
             if DEMO_MODE:
-                S = 0.5
-                if step < eval_env.CTRL_FREQ * 2:
-                    action = np.array([S,0,0])
+                if step < eval_env.CTRL_FREQ * 1:
+                    action = Action.STOP
+                elif step < eval_env.CTRL_FREQ * 2:
+                    action = Action.FORWARD
+                elif step < eval_env.CTRL_FREQ * 3:
+                    action = Action.ROTATE_LEFT
                 elif step < eval_env.CTRL_FREQ * 4:
-                    action = np.array([0,0,0])
+                    action = Action.ROTATE_RIGHT
+                elif step < eval_env.CTRL_FREQ * 5:
+                    action = Action.DRIFT_LEFT
                 elif step < eval_env.CTRL_FREQ * 6:
-                    action = np.array([-S,0,0])
+                    action = Action.DRIFT_RIGHT
+                elif step < eval_env.CTRL_FREQ * 7:
+                    action = Action.UP
                 elif step < eval_env.CTRL_FREQ * 8:
-                    action = np.array([0,0,0])
-                elif step < eval_env.CTRL_FREQ * 10:
-                    action = np.array([S,-S,0])
-                elif step < eval_env.CTRL_FREQ * 12:
-                    action = np.array([0,0,0])
-                elif step < eval_env.CTRL_FREQ * 14:
-                    action = np.array([-S,S,0])
+                    action = Action.DOWN
                 else:
-                    action = np.array([0,0,0])
+                    action = Action.STOP
             else:
                 action, _ = model.predict(obs) # prédiction du modèle sur l'action à effectuer
 

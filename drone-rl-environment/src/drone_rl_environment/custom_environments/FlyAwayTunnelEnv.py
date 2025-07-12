@@ -1,5 +1,3 @@
-from scipy.spatial.transform import Rotation as R
-
 from .FlyAwayEnv import *
 
 DEFAULT_ENABLE_RANDOM_TUNNEL_ROTATION = False
@@ -50,11 +48,6 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
                          max_episode_duration=max_episode_duration,
                          gui=gui
                          )
-        
-    def rotatePosByRPY(self, pos, rpy):
-        orientation_quat = p.getQuaternionFromEuler(rpy)
-        rot_matrix = R.from_quat(orientation_quat).as_matrix()
-        return rot_matrix @ np.array(pos)
 
     def _addObstacles(self):
         hw = self.walls_width/2 # moitié de la largeur des murs
@@ -66,28 +59,28 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
 
         # plafond
         self.add_fixed_obstacle(
-            center_pos=self.rotatePosByRPY([-self.default_tunnel_extra_room + self.tunnel_length / 2, 0, self.tunnel_height+self.walls_width/2], self.current_tunnel_rotation), 
+            center_pos=self.rotate_vector_by_rpy([-self.default_tunnel_extra_room + self.tunnel_length / 2, 0, self.tunnel_height+self.walls_width/2], self.current_tunnel_rotation), 
             size=[self.tunnel_length, self.tunnel_width, self.walls_width], 
             rgba_color=TUNNEL_COLOR, 
             rotation_rpy=self.current_tunnel_rotation)
 
         # mur à gauche
         self.add_fixed_obstacle(
-            center_pos=self.rotatePosByRPY([-self.default_tunnel_extra_room + self.tunnel_length / 2, self.tunnel_width / 2 + hw, self.tunnel_height / 2], self.current_tunnel_rotation), 
+            center_pos=self.rotate_vector_by_rpy([-self.default_tunnel_extra_room + self.tunnel_length / 2, self.tunnel_width / 2 + hw, self.tunnel_height / 2], self.current_tunnel_rotation), 
             size=[self.tunnel_length, self.walls_width, self.tunnel_height], 
             rgba_color=TUNNEL_COLOR, 
             rotation_rpy=self.current_tunnel_rotation)
 
         # mur à droite
         self.add_fixed_obstacle(
-            center_pos=self.rotatePosByRPY([-self.default_tunnel_extra_room + self.tunnel_length / 2, -self.tunnel_width / 2 - hw, self.tunnel_height / 2], self.current_tunnel_rotation), 
+            center_pos=self.rotate_vector_by_rpy([-self.default_tunnel_extra_room + self.tunnel_length / 2, -self.tunnel_width / 2 - hw, self.tunnel_height / 2], self.current_tunnel_rotation), 
             size=[self.tunnel_length, self.walls_width, self.tunnel_height], 
             rgba_color=TUNNEL_COLOR, 
             rotation_rpy=self.current_tunnel_rotation)
 
         # mur dérrière
         self.add_fixed_obstacle(
-            center_pos=self.rotatePosByRPY([-self.default_tunnel_extra_room - hw, 0, self.tunnel_height / 2], self.current_tunnel_rotation), 
+            center_pos=self.rotate_vector_by_rpy([-self.default_tunnel_extra_room - hw, 0, self.tunnel_height / 2], self.current_tunnel_rotation), 
             size=[self.walls_width, self.tunnel_width, self.tunnel_height], 
             rgba_color=TUNNEL_COLOR, 
             rotation_rpy=self.current_tunnel_rotation)

@@ -112,7 +112,11 @@ class LidarSensor:
     # NOTE : si cette fonction est appelé durant un intervalle de temps inférieur à la fréquence de rafraîchissement du capteur, les valeurs retournées seront les mêmes.
     def read_distances(self):
         dir, distances = zip(*self.lidar_data)
-        return distances
+        return np.array(distances)
+    
+    # comme read_distances() mais les distances sont normalisées entre 0 et 1 en fonction de la distance max du capteur
+    def read_normalized_distances(self):
+        return self.read_distances() / self.max_distance
     
     # retourne une liste contenant tous les points locaux (référentiel = position du drone) détectés par le capteur LiDAR
     # si ignore_max_distances est True, les points correspondants à la distance max du capteur ne seront pas ajoutés à la liste

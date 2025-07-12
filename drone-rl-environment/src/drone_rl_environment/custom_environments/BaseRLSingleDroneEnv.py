@@ -6,7 +6,11 @@ from gym_pybullet_drones.utils.enums import DroneModel
 
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 
+from scipy.spatial.transform import Rotation as R
+
 from lidar.LidarSensor import LidarSensor
+
+from .Action import *
 
 import pybullet as p
 
@@ -16,12 +20,14 @@ DEFAULT_MAX_EPISODE_DURATION = 10 # secondes
 DEFAULT_MAX_VELOCITY = 0.5 # mètres/seconde
 
 DEFAULT_PYBULLET_PHYSICS_FREQ = 240 # màj physique par seconde, même valeur que l'environnement de base BaseAviary (provenant du projet gym-pybullet-drones original)
-DEFAULT_ENV_STEP_FREQ = 120 # appels à env.step() par seconde
+DEFAULT_ENV_STEP_FREQ = 60 # appels à env.step() par seconde
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_LIDAR_RAYS_COUNT = 6
 DEFAULT_LIDAR_MAX_DISTANCE = 10
 DEFAULT_LIDAR_FREQUENCY = DEFAULT_ENV_STEP_FREQ
 DEFAULT_ENABLE_LIDAR_RAYS = False
+
+    
 
 class BaseRLSingleDroneEnv(BaseAviary):
     REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
@@ -156,17 +162,19 @@ class BaseRLSingleDroneEnv(BaseAviary):
         # l'espace d'action est un vecteur en 3 dimensions censé représenter la vitesse cible
         # cette information est ensuite passée au contrôleur PID qui se chargera d'ajuster
         # les RPMs des quatres moteurs pour atteindre la vélocité désirée.
-        return spaces.Box(
+        """return spaces.Box(
             low=-self.max_drone_velocity,
             high=self.max_drone_velocity,
             shape=(3,),
             dtype=np.float32,
-        )
+        )"""
+
+        return spaces.Discrete(8) # stop, avant, haut, bas, gauche, droite, rotation gauche, rotation droite
     
     def _observationSpace(self):
         # l'espace d'observation est un vecteur représentant l'état actuel du drone et de son environment
         # en l'occurence, il s'agit de sa position, sa vitesse et son orientation ainsi que des N scans du capteur LiDAR
-        low = np.concatenate([
+        """low = np.concatenate([
             np.full(9, -np.inf),
             np.zeros(self.lidar_rays_count)
         ])
@@ -175,26 +183,44 @@ class BaseRLSingleDroneEnv(BaseAviary):
             np.full(self.lidar_rays_count, self.lidar_max_distance) # todo : voir pour normaliser la distance
         ])
 
+        return spaces.Box(low=low, high=high, dtype=np.float32)"""
+
+        # espace d'observation lidar-only
+        low = np.concatenate([
+            np.zeros(self.lidar_rays_count)
+        ])
+        high = np.concatenate([
+            np.full(self.lidar_rays_count, 1)
+        ])
         return spaces.Box(low=low, high=high, dtype=np.float32)
 
     # Retourne une observation de l'environnement (état du drone et de ses capteurs)
     def _computeObs(self):
-        data = self.lidar_sensor.update(1. / self.CTRL_FREQ)
+        self.lidar_sensor.update(1. / self.CTRL_FREQ)
 
+        # todo : mettre l'affichage de debug ailleurs
         if self.GUI:
             if self.time_elapsed_text_id is not None:
                 p.removeUserDebugItem(self.time_elapsed_text_id)
             self.time_elapsed_text_id = p.addUserDebugText(str(round(self.get_elapsed_time(),1)) + ' / ' + str(round(self.max_episode_duration,1)) + ' seconds.', self.get_real_drone_pos(), textColorRGB=[0, 1, 0], textSize=1.5)
 
+
         observation = np.zeros(self._observationSpace().shape)
-        observation[0:3] = self.get_estimated_drone_pos()
+        """observation[0:3] = self.get_estimated_drone_pos()
         observation[3:6] = self.get_estimated_drone_velocity()
         observation[6:9] = self.get_estimated_drone_attitude()
 
         # todo : problème au niveau de la normalisation -> l'espace d'observation ne prends pas ça en compte
-        observation[9:9 + self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance
+        observation[9:9 + self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance"""
+
+        observation[0:self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance
 
         return observation
+    
+    def rotate_vector_by_rpy(self, pos, rpy):
+        orientation_quat = p.getQuaternionFromEuler(rpy)
+        rot_matrix = R.from_quat(orientation_quat).as_matrix()
+        return rot_matrix @ np.array(pos)
 
     # Méthode appellée automatiquement par la classe parente.
     # Convertir l'action (voir _actionSpace()) en 4 valeurs : RPM des quatres moteurs.
@@ -206,15 +232,29 @@ class BaseRLSingleDroneEnv(BaseAviary):
         state = obs[0]
         target_pos = self.get_real_drone_pos() # todo : position réelle ou estimée ?
         target_rpy = self.INIT_RPYS[0,:]
-        target_vel = action.reshape(-1)
+        
+        #target_vel = action.reshape(-1)
 
         # todo : normaliser la vitesse pour que ça rentre dans self.max_drone_velocity
-        
+
+        target_pos = self.get_real_drone_pos()
+
+
+        target_rpy = self.get_real_drone_attitude()
+        target_vel = np.array(action_to_direction(action)) * self.max_drone_velocity
+        target_vel = self.rotate_vector_by_rpy(target_vel, target_rpy)
+        target_rpy_rates = [0,0,0]
+        if action == Action.ROTATE_LEFT:
+            target_rpy_rates = [0,0,np.deg2rad(360 / 3)] # vitesse de rotation : 3 tour par seconde # todo : constante pour vitesse de rotation
+        elif action == Action.ROTATE_RIGHT:
+            target_rpy_rates = [0,0,-np.deg2rad(360 / 3)]
+
         target_rpms = self.pid_controller.computeControlFromState(control_timestep=self.CTRL_TIMESTEP,
                                                                   state=state,
                                                                   target_pos=target_pos,
                                                                   target_rpy=target_rpy, # on reste horizontal
-                                                                  target_vel=target_vel)
+                                                                  target_vel=target_vel,
+                                                                  target_rpy_rates=target_rpy_rates) # rotation gauche droite #todo refactor
         
         return np.array(np.clip(target_rpms[0], 0, self.MAX_RPM))
     

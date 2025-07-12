@@ -19,6 +19,11 @@ class FlyAwayEnv(BaseRLSingleDroneEnv):
 
         #reward = 100 * distance_from_starting_point / self.CTRL_FREQ # reward += distance par rapport au point de départ / seconde. donc si le drone est à 10 mètres, c'est 10 "points" par seconde.
 
+        DANGER_RADIUS = 0.2 # 20 cm danger radius #todo : constante ailleurs
+        min_dist = self.lidar_sensor.read_distances().min()
+        if min_dist < DANGER_RADIUS:
+            reward -= 1000 * (1 - min_dist / DANGER_RADIUS) / self.CTRL_FREQ
+
         # en cas de collision, reward extrêmement négatif + fin de l'épisode
         if self.check_for_collisions():
             reward -= 5000
