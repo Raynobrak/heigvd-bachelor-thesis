@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from gymnasium import spaces
 
@@ -17,16 +18,16 @@ import pybullet as p
 DRONE_MODEL = DroneModel.CF2X
 
 DEFAULT_MAX_EPISODE_DURATION = 10 # secondes
-DEFAULT_MAX_VELOCITY = 0.5 # mètres/seconde
+DEFAULT_MAX_VELOCITY = 0.6 # mètres/seconde
 
 DEFAULT_PYBULLET_PHYSICS_FREQ = 240 # màj physique par seconde, même valeur que l'environnement de base BaseAviary (provenant du projet gym-pybullet-drones original)
 DEFAULT_ENV_STEP_FREQ = 60 # appels à env.step() par seconde
 DEFAULT_OUTPUT_FOLDER = 'results'
-DEFAULT_LIDAR_RAYS_COUNT = 6
-DEFAULT_LIDAR_MAX_DISTANCE = 10
+DEFAULT_LIDAR_RAYS_COUNT = 14
+DEFAULT_LIDAR_MAX_DISTANCE = 12
 DEFAULT_LIDAR_FREQUENCY = DEFAULT_ENV_STEP_FREQ
 DEFAULT_ENABLE_LIDAR_RAYS = False
-DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER = 0.2
+DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER = 0.5
 
 class BaseRLSingleDroneEnv(BaseAviary):
     REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
@@ -161,7 +162,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
         return self.step_counter * self.PYB_TIMESTEP
 
     def _actionSpace(self):
-        return spaces.Discrete(Action.ACTIONS_COUNT) # stop, avant, haut, bas, gauche, droite, rotation gauche, rotation droite
+        return spaces.Discrete(int(Action.ACTIONS_COUNT)) # stop, avant, haut, bas, gauche, droite, rotation gauche, rotation droite
     
     def _observationSpace(self):
         # espace d'observation lidar-only
@@ -182,7 +183,6 @@ class BaseRLSingleDroneEnv(BaseAviary):
             if self.time_elapsed_text_id is not None:
                 p.removeUserDebugItem(self.time_elapsed_text_id)
             self.time_elapsed_text_id = p.addUserDebugText(str(round(self.get_elapsed_time(),1)) + ' / ' + str(round(self.max_episode_duration,1)) + ' seconds.', self.get_real_drone_pos(), textColorRGB=[0, 1, 0], textSize=1.5)
-
 
         observation = np.zeros(self._observationSpace().shape)
         observation[0:self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance

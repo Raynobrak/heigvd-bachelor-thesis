@@ -7,7 +7,7 @@
 import time
 import os
 from pathlib import Path
-from stable_baselines3 import PPO,DDPG
+from stable_baselines3 import PPO, DDPG, DQN, A2C
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecMonitor, DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
@@ -33,10 +33,11 @@ def create_environment(evaluation=False):
                     initial_xyz_position=INIT_XYZS,
                     initial_rpy_attitude=INIT_RPYS,
                     gui=evaluation,
-                    tunnel_width=1,
-                    tunnel_height=1,
+                    tunnel_width=2,
+                    tunnel_height=2,
+                    tunnel_extra_room=4,
                     lidar_rays_count=10, # 8 à 360° + 2 verticaux (haut et bas)
-                    enable_lidar_rays_debug=False
+                    enable_lidar_rays_debug=True
                     )
     return environment #todo VecEnv + VecMonitor wrapper avec make_vec_env
 
@@ -48,7 +49,7 @@ def get_dummy_env():
 # créé un nouveau modèle de RL
 def create_model():
     dummy_env = get_dummy_env() # si aucun environnement n'est spécifié, créé un environnement artificiel qui est immédiatement détruit. c'est juste pour que ça compile
-    model = PPO(
+    """model = PPO(
         'MlpPolicy',
         env=dummy_env,
         verbose=1,
@@ -60,8 +61,8 @@ def create_model():
         ent_coef=0.01,
         tensorboard_log=TENSORBOARD_LOGS_FOLDER,
         stats_window_size=STATS_WINDOW_SIZE
-    )
-    """    model = DDPG(
+    )"""
+    """model = DDPG(
         'MlpPolicy',
         env=dummy_env,
         verbose=1,
@@ -69,6 +70,28 @@ def create_model():
         tensorboard_log=TENSORBOARD_LOGS_FOLDER,
     )"""
     
+    #model = DQN("MlpPolicy", dummy_env, verbose=1)
+    
+    model = DQN(
+        policy="MlpPolicy",
+        env=dummy_env,
+        learning_rate=1e-3,
+        buffer_size=100_000,
+        batch_size=128,
+        learning_starts=200,
+        tau=1.0,
+        gamma=0.99,
+        train_freq=(32, "step"),
+        gradient_steps=1,
+        target_update_interval=500,
+        exploration_fraction=0.1,
+        exploration_final_eps=0.02,
+        max_grad_norm=10,
+        policy_kwargs=dict(net_arch=[64, 64]),
+        verbose=1,
+        tensorboard_log=TENSORBOARD_LOGS_FOLDER
+    )
+
     return model
 
 # charge un modèle à partir d'un fichier
@@ -78,7 +101,7 @@ def load_model(filename, use_default_folder=True):
     path = Path.cwd() / 'models' / filename # todo : faire ça proprement
 
     if path.exists():
-        return PPO.load(path, env=get_dummy_env())
+        return DDPG.load(path, env=get_dummy_env())
     else:
         print(f'Error when loading model : "{path}" doesn\'t exist.')
         return None
@@ -113,7 +136,7 @@ def visualize_model_in_environment(model, num_episodes=5):
         terminated, truncated = False, False
         step = 0
 
-        DEMO_MODE = 0 # todo : temporaire, voir pour enlever ou faire une fonction à part pour une démo
+        DEMO_MODE = 1 # todo : temporaire, voir pour enlever ou faire une fonction à part pour une démo
 
         while not (terminated or truncated):
             obs, reward, terminated, truncated, info = eval_env.step(action)

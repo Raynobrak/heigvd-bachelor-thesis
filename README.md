@@ -1,6 +1,12 @@
 # Travail de Bachelor
 
-Pilotage de drones basé sur de l'apprentissage par renforcement
+Pilotage de drones basé sur de l'apprentissage par renforcement.
+
+Ce repository contient deux projets :
+1. Une simulation 2D servant de "proof of concept" pour se familiariser avec l'apprentissage par renforcement.
+2. Une simulation 3D relativement réaliste basée sur le projet `gym-pybullet-drones` de utiasDSL : https://github.com/utiasDSL/gym-pybullet-drones
+
+Les sections ci-dessous indique comment installer les dépendances et lancer ces deux projets.
 
 ## Exécution de simplified-drone-sim
 
@@ -28,3 +34,13 @@ Pareil que pour breezyslam mais il faut télécharger le repo de PyRoboViz par l
 - Déplacements : W,A,S,D -> accélère le drone en haut, à gauche, en bas ou à droite
 - Touche P : active/désactive l'estimation de la position avec l'accéléromètre
 - Touche Espace : passe en vue drone ou vue normale. En vue drone, rien n'est visible à part les données des capteurs.
+
+## Exécution de drone-rl-environment
+
+Dépendances : 
+- python==3.10
+- MS Visual C++ 14.0 ou plus récent (compilation de pybullet)
+
+TODO installation dépendances + repo gym-pybullet-drones
+
+### Visualisation des résultats des runs avec tensorboard
