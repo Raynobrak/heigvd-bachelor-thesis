@@ -27,6 +27,7 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
                  initial_rpy_attitude=None,
                  max_drone_velocity=DEFAULT_MAX_VELOCITY,
                  max_episode_duration=DEFAULT_MAX_EPISODE_DURATION,
+                 drone_lateral_speed_multiplier=DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER,
                  gui=False,
                  ):
         self.enable_random_tunnel_rotation = enable_random_tunnel_rotation
@@ -46,6 +47,7 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
                          initial_rpy_attitude=initial_rpy_attitude,
                          max_drone_velocity=max_drone_velocity,
                          max_episode_duration=max_episode_duration,
+                         drone_lateral_speed_multiplier=drone_lateral_speed_multiplier,
                          gui=gui
                          )
 

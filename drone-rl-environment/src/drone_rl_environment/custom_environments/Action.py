@@ -9,6 +9,7 @@ class Action(IntEnum):
     DOWN = 5
     ROTATE_LEFT = 6
     ROTATE_RIGHT = 7
+    ACTIONS_COUNT = 8
 
 def action_to_direction(actionIndex):
     match actionIndex:

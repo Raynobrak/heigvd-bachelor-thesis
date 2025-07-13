@@ -26,8 +26,7 @@ DEFAULT_LIDAR_RAYS_COUNT = 6
 DEFAULT_LIDAR_MAX_DISTANCE = 10
 DEFAULT_LIDAR_FREQUENCY = DEFAULT_ENV_STEP_FREQ
 DEFAULT_ENABLE_LIDAR_RAYS = False
-
-    
+DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER = 0.2
 
 class BaseRLSingleDroneEnv(BaseAviary):
     REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
@@ -44,6 +43,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
                  initial_rpy_attitude=None,
                  max_drone_velocity=DEFAULT_MAX_VELOCITY,
                  max_episode_duration=DEFAULT_MAX_EPISODE_DURATION,
+                 drone_lateral_speed_multiplier = DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER,
                  gui=False,
                  ):
         
@@ -54,6 +54,8 @@ class BaseRLSingleDroneEnv(BaseAviary):
         
         self.max_drone_velocity = max_drone_velocity
         self.max_episode_duration = max_episode_duration
+
+        self.drone_lateral_speed_multiplier = drone_lateral_speed_multiplier
 
         self.rng = np.random.default_rng(seed=None) # todo : faire autrement
         super().__init__(drone_model=DRONE_MODEL,
@@ -159,32 +161,9 @@ class BaseRLSingleDroneEnv(BaseAviary):
         return self.step_counter * self.PYB_TIMESTEP
 
     def _actionSpace(self):
-        # l'espace d'action est un vecteur en 3 dimensions censé représenter la vitesse cible
-        # cette information est ensuite passée au contrôleur PID qui se chargera d'ajuster
-        # les RPMs des quatres moteurs pour atteindre la vélocité désirée.
-        """return spaces.Box(
-            low=-self.max_drone_velocity,
-            high=self.max_drone_velocity,
-            shape=(3,),
-            dtype=np.float32,
-        )"""
-
-        return spaces.Discrete(8) # stop, avant, haut, bas, gauche, droite, rotation gauche, rotation droite
+        return spaces.Discrete(Action.ACTIONS_COUNT) # stop, avant, haut, bas, gauche, droite, rotation gauche, rotation droite
     
     def _observationSpace(self):
-        # l'espace d'observation est un vecteur représentant l'état actuel du drone et de son environment
-        # en l'occurence, il s'agit de sa position, sa vitesse et son orientation ainsi que des N scans du capteur LiDAR
-        """low = np.concatenate([
-            np.full(9, -np.inf),
-            np.zeros(self.lidar_rays_count)
-        ])
-        high = np.concatenate([
-            np.full(9, np.inf),
-            np.full(self.lidar_rays_count, self.lidar_max_distance) # todo : voir pour normaliser la distance
-        ])
-
-        return spaces.Box(low=low, high=high, dtype=np.float32)"""
-
         # espace d'observation lidar-only
         low = np.concatenate([
             np.zeros(self.lidar_rays_count)
@@ -206,13 +185,6 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
 
         observation = np.zeros(self._observationSpace().shape)
-        """observation[0:3] = self.get_estimated_drone_pos()
-        observation[3:6] = self.get_estimated_drone_velocity()
-        observation[6:9] = self.get_estimated_drone_attitude()
-
-        # todo : problème au niveau de la normalisation -> l'espace d'observation ne prends pas ça en compte
-        observation[9:9 + self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance"""
-
         observation[0:self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance
 
         return observation
@@ -239,9 +211,13 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
         target_pos = self.get_real_drone_pos()
 
-
         target_rpy = self.get_real_drone_attitude()
-        target_vel = np.array(action_to_direction(action)) * self.max_drone_velocity
+        target_dir = np.array(action_to_direction(action))
+
+        # si le drone va en avant, la vélocité est maximale. si le drone va sur les côtés (DRIFT_LEFT ou DRIFT_RIGHT), cette vitesse est diminuée (par self.drone_lateral_speed_multiplier)
+        speed = self.max_drone_velocity if action == Action.FORWARD else self.max_drone_velocity * self.drone_lateral_speed_multiplier
+        target_vel = target_dir * speed
+
         target_vel = self.rotate_vector_by_rpy(target_vel, target_rpy)
         target_rpy_rates = [0,0,0]
         if action == Action.ROTATE_LEFT:
@@ -252,9 +228,9 @@ class BaseRLSingleDroneEnv(BaseAviary):
         target_rpms = self.pid_controller.computeControlFromState(control_timestep=self.CTRL_TIMESTEP,
                                                                   state=state,
                                                                   target_pos=target_pos,
-                                                                  target_rpy=target_rpy, # on reste horizontal
+                                                                  target_rpy=target_rpy,
                                                                   target_vel=target_vel,
-                                                                  target_rpy_rates=target_rpy_rates) # rotation gauche droite #todo refactor
+                                                                  target_rpy_rates=target_rpy_rates)
         
         return np.array(np.clip(target_rpms[0], 0, self.MAX_RPM))
     
