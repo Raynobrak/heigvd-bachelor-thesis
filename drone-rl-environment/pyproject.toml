@@ -13,6 +13,7 @@ pybullet = "3.2.5"
 gym-pybullet-drones = { path = "libraries/gym-pybullet-drones", develop = true }
 setuptools = "^80.9.0"
 stable-baselines3 = {extras = ["extra"], version = "^2.6.0"}
+pillow = "^11.3.0"
 
 [tool.poetry.group.dev.dependencies]
 snakeviz = "^2.2.2"
