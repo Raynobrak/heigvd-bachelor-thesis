@@ -10,6 +10,7 @@ from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 from scipy.spatial.transform import Rotation as R
 
 from lidar.LidarSensor import LidarSensor
+from mapping.map import Map
 
 from .Action import *
 
@@ -40,6 +41,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
                  lidar_max_distance=DEFAULT_LIDAR_MAX_DISTANCE,
                  lidar_freq=DEFAULT_LIDAR_FREQUENCY,
                  enable_lidar_rays_debug= DEFAULT_ENABLE_LIDAR_RAYS,
+                 enable_mapping=False,
                  initial_xyz_position=None,
                  initial_rpy_attitude=None,
                  max_drone_velocity=DEFAULT_MAX_VELOCITY,
@@ -52,11 +54,15 @@ class BaseRLSingleDroneEnv(BaseAviary):
         self.lidar_max_distance = lidar_max_distance
         self.lidar_freq = lidar_freq
         self.enable_lidar_rays_debug = enable_lidar_rays_debug
+        self.enable_mapping = enable_mapping
         
         self.max_drone_velocity = max_drone_velocity
         self.max_episode_duration = max_episode_duration
 
         self.drone_lateral_speed_multiplier = drone_lateral_speed_multiplier
+
+        if self.enable_mapping:
+            self.map = Map(x_size=30, y_size=30, z_size=30, origin_offset=np.array([15,15,15]), resolution_voxels_per_unit=20) # todo : construire que si activé
 
         self.rng = np.random.default_rng(seed=None) # todo : faire autrement
         super().__init__(drone_model=DRONE_MODEL,
@@ -178,6 +184,9 @@ class BaseRLSingleDroneEnv(BaseAviary):
     def _computeObs(self):
         self.lidar_sensor.update(1. / self.CTRL_FREQ)
 
+        if self.enable_mapping:
+            self.map.add_scan(local_scan_points=self.lidar_sensor.read_local_points(), sensor_position=self.get_real_drone_pos(), max_distance=self.lidar_max_distance)
+
         # todo : mettre l'affichage de debug ailleurs
         if self.GUI:
             if self.time_elapsed_text_id is not None:
@@ -233,6 +242,12 @@ class BaseRLSingleDroneEnv(BaseAviary):
                                                                   target_rpy_rates=target_rpy_rates)
         
         return np.array(np.clip(target_rpms[0], 0, self.MAX_RPM))
+    
+    def save_map(self):
+        if not self.enable_mapping:
+            print('Error, mapping is not enabled')
+        else:
+            self.map.save_2D_map_to_file()
     
     # Retourne la distance euclidienne entre le drone et le point cible
     def distance_to_target(self):
