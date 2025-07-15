@@ -50,7 +50,6 @@ class LidarSensor:
     # met à jour la visualisation en fonction du dernier scan effectué
     def update_debug_visualization(self):
         n = len(self.debug_items_ids)
-        print(n)
         #self.clear_debug_items() # suppression des objets du scan précédent
 
         ids_present = n > 0
