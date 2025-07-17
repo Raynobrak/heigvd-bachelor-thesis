@@ -8,7 +8,7 @@ from rl_utils import *
 from pathlib import Path
 
 def make_gui_env():
-    return FlyAwayTunnelEnv(gui=True,
+    return FlyAwayTunnelEnv(gui=False,
                             enable_random_tunnel_rotation=True,
                             enable_mapping=True,
                             initial_xyz_position=INIT_XYZS,
@@ -16,40 +16,40 @@ def make_gui_env():
                             tunnel_width=1,
                             tunnel_height=1,
                             lidar_rays_count=10,
-                            enable_lidar_rays_debug=True)
+                            max_episode_duration=50,
+                            enable_lidar_rays_debug=False)
 
 def visualize_model(model_filename):
     path = Path.cwd() / 'models' / model_filename # todo : faire ça proprement
 
-    eval_env = DummyVecEnv([make_gui_env])          # n_envs = 1
-    eval_env.close()
+    eval_env = VecMonitor(DummyVecEnv([make_gui_env]))          # n_envs = 1
 
     #todo make this work 
     print('Loading model from file...')
     model = DQN.load(path, env=eval_env)  # OK même si le modèle fut entraîné à 8 envs
     print('...Done !')
 
-    for _ in range(30):
-        eval_env = VecMonitor(DummyVecEnv([make_gui_env]))       # n_envs = 1
-        model.set_env(eval_env)                                  # pas de check d’égalité n_envs ici
-
+    for i in range(30):
         obs = eval_env.reset()                                   # shape = (1, obs_dim)
+        eval_env.envs[0].reset_map()
         start_time = time.time()
         done = False
         step = 0
-
         while not done:
             action, _ = model.predict(obs, deterministic=True)
-
             obs, rewards, dones, infos = eval_env.step(action)
             done = dones[0]
 
+            if not done:
+                eval_env.envs[0].update_map()
+
             ctrl_ts = eval_env.get_attr("CTRL_TIMESTEP")[0]
-            sync(step, start_time, ctrl_ts)
+            #sync(step, start_time, ctrl_ts)
             step += 1
 
-        eval_env.envs[0].save_map()
-        eval_env.close()
+        print('épisode terminé')
+        eval_env.envs[0].save_map(filename='map-'+str(i)+'.png')
+        #eval_env.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Visualise le modèle donné en paramètre dans un environnement 3D")

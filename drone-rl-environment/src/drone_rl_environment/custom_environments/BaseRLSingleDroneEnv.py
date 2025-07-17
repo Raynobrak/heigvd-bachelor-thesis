@@ -61,9 +61,6 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
         self.drone_lateral_speed_multiplier = drone_lateral_speed_multiplier
 
-        if self.enable_mapping:
-            self.map = Map(x_size=30, y_size=30, z_size=30, origin_offset=np.array([15,15,15]), resolution_voxels_per_unit=20) # todo : construire que si activé
-
         self.rng = np.random.default_rng(seed=None) # todo : faire autrement
         super().__init__(drone_model=DRONE_MODEL,
                          num_drones=1,
@@ -184,9 +181,6 @@ class BaseRLSingleDroneEnv(BaseAviary):
     def _computeObs(self):
         self.lidar_sensor.update(1. / self.CTRL_FREQ)
 
-        if self.enable_mapping:
-            self.map.add_scan(local_scan_points=self.lidar_sensor.read_local_points(), sensor_position=self.get_real_drone_pos(), max_distance=self.lidar_max_distance)
-
         # todo : mettre l'affichage de debug ailleurs
         if self.GUI:
             if self.time_elapsed_text_id is not None:
@@ -197,6 +191,27 @@ class BaseRLSingleDroneEnv(BaseAviary):
         observation[0:self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance
 
         return observation
+    
+    def reset_map(self):
+        if self.enable_mapping: 
+            size = 20 # todo : constantes/paramètres
+            origin = size / 2
+            res = 50
+            print('map resetted')
+            self.map = Map(x_size=size, y_size=size, z_size=size, origin_offset=np.array([origin,origin,origin]), resolution_voxels_per_unit=res) # todo : construire que si activé
+        else:
+            raise('error : could not create map; mapping is disabled.')
+    
+    def update_map(self):
+        if self.is_done():
+            print('uuuuh wtf')
+        if self.enable_mapping:
+            self.map.add_scan(local_scan_points=self.lidar_sensor.read_local_points(), sensor_position=self.get_real_drone_pos(), max_distance=self.lidar_max_distance)
+        else:
+            raise('error : could not update map; mapping is disabled.')
+        
+    def is_done(self):
+        return self._computeTerminated() or self._computeTruncated()
     
     def rotate_vector_by_rpy(self, pos, rpy):
         orientation_quat = p.getQuaternionFromEuler(rpy)
@@ -243,11 +258,11 @@ class BaseRLSingleDroneEnv(BaseAviary):
         
         return np.array(np.clip(target_rpms[0], 0, self.MAX_RPM))
     
-    def save_map(self):
+    def save_map(self, filename):
         if not self.enable_mapping:
-            print('Error, mapping is not enabled')
+            raise('error : could not save map; mapping is disabled.')
         else:
-            self.map.save_2D_map_to_file()
+            self.map.save_2D_map_to_file(filename)
     
     # Retourne la distance euclidienne entre le drone et le point cible
     def distance_to_target(self):
@@ -270,7 +285,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
         return self.check_for_collisions()    
 
     def _computeTruncated(self):
-        return self.get_elapsed_time() > self.max_episode_duration
+        return self.get_elapsed_time() >= self.max_episode_duration
     
     def _computeInfo(self):
         return {'info':None}

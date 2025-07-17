@@ -65,6 +65,7 @@ class LidarSensor:
                     # affiche une ligne entre le drone et le point d'arrivée
                     line_id = p.addUserDebugLine(self.drone_pos, pt, [0,0,0.5]) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
     
+                assert(line_id >= 0)
                 self.debug_items_ids.append(line_id)
 
                 # accentue le point d'arrivée en dessinant une ligne épaisse de très petite longueur
@@ -79,11 +80,12 @@ class LidarSensor:
 
                 line_id = self.debug_items_ids[i]
                 if i == 0:  
-                    p.addUserDebugLine(self.drone_pos, pt, [1,1,0.8], replaceItemUniqueId=line_id) # todo : constante pour couleur
+                    a = p.addUserDebugLine(self.drone_pos, pt, [1,1,0.8], replaceItemUniqueId=line_id) # todo : constante pour couleur
+                    assert(a >= 0) # todo : fix le crash quand ça échoue après avoir reset l'env
                 else:
                     # affiche une ligne entre le drone et le point d'arrivée
-                    p.addUserDebugLine(self.drone_pos, pt, [0,0,0.5], replaceItemUniqueId=line_id) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
-    
+                    a= p.addUserDebugLine(self.drone_pos, pt, [0,0,0.5], replaceItemUniqueId=line_id) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
+                    assert(a >= 0) # todo : fix le crash quand ça échoue après avoir reset l'env
                 # accentue le point d'arrivée en dessinant une ligne épaisse de très petite longueur
                 # note : il existe une fonction p.addUserDebugPoints() mais il y a un bug qui fait qu'on ne peut pas supprimer ou obtenir l'ID des points ajoutés
                 # d'où l'utilisation de ce "workaround" pour pouvoir accentuer le point d'arrivée.

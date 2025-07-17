@@ -16,7 +16,7 @@ from stable_baselines3 import PPO,DDPG
 from rl_utils import *
 
 def run():
-    RUN_NAME = 'dqn-bignet-test'
+    RUN_NAME = 'dqn-long-episodes-no-lateral-movement-128-128'
     STEP_PER_ITERATION = 16384 * 16
 
     #model = load_model('ppo-tunnel-nightrun_ts-21037056_11-11-50-02.zip')
