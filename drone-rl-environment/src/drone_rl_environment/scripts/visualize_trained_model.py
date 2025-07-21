@@ -7,39 +7,24 @@ import argparse
 from drone_rl_environment.rl_utils import *
 from pathlib import Path
 
-def make_gui_env():
-    return FlyAwayTunnelEnv(gui=True,
-                            enable_random_tunnel_rotation=True,
-                            enable_mapping=True,
-                            initial_xyz_position=INIT_XYZS,
-                            initial_rpy_attitude=INIT_RPYS,
-                            tunnel_width=1,
-                            tunnel_height=1,
-                            lidar_rays_count=10,
-                            max_episode_duration=20,
-                            enable_lidar_rays_debug=True)
-    return FlyAwayEnv(gui=True, lidar_rays_count=10, enable_mapping=True, max_episode_duration=5, enable_lidar_rays_debug=True)
-
 def visualize_model(model_filename):
-    path = Path.cwd() / 'models' / model_filename # todo : faire ça proprement
-
+    print('Creating env...')
     eval_env = VecMonitor(DummyVecEnv([make_gui_env]))
+    print('Env created.')
 
-    #todo make this work 
     print('Loading model from file...')
-    model = PPO.load(path, env=eval_env) 
+    model = load_model(model_filename, env=eval_env)
     print('...Done !')
 
     ACTION_FREQ = eval_env.envs[0].CTRL_FREQ / DEFAULT_ACTION_FREQ
 
-    for i in range(30):
+    for i in range(999):
         obs = eval_env.reset()
         eval_env.envs[0].reset_map()
         start_time = time.time()
         done = False
         step = 0
-
-        dones = [False]
+        total_reward = 0
         
         while not done:
             if step == 0 or step % ACTION_FREQ == 0:
@@ -48,11 +33,9 @@ def visualize_model(model_filename):
             
             # todo : refactor cette boucle
             eval_env.envs[0].step_pid_only(action)
-            o, r, ter, trunc, inf = eval_env.envs[0].step_observation_only()
-            obs[0] = o
-            dones[0] = ter or trunc
-
-            done = dones[0]
+            obs[0], reward, terminated, truncated, info = eval_env.envs[0].step_observation_only()
+            done = terminated or truncated
+            total_reward += reward
 
             if not done:
                 eval_env.envs[0].update_map()
@@ -61,9 +44,8 @@ def visualize_model(model_filename):
             sync(step, start_time, ctrl_ts)
             step += 1
 
-        print('épisode terminé', step)
+        print('Épisode terminé. Reward total :', round(total_reward,1))
         eval_env.envs[0].save_map(filename='map-'+str(i)+'.png') # todo : sauvegarde dans un dossier fixe
-        #eval_env.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Visualise le modèle donné en paramètre dans un environnement 3D")

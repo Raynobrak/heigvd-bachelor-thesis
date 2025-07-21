@@ -12,9 +12,6 @@ from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecMonitor, DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 
-from sb3_contrib import QRDQN
-from torchrl.data import PrioritizedReplayBuffer
-
 from stable_baselines3.common.utils import get_linear_fn
 
 from drone_rl_environment.custom_environments.FlyAwayCeilingEnv import *
@@ -32,6 +29,19 @@ NUM_SUBPROC_ENVS = 6
 TIMESTEPS_PER_EPOCH = 4096
 STATS_WINDOW_SIZE = 20
 TENSORBOARD_LOGS_FOLDER = "./tensorboard-logs/"
+
+def make_gui_env():
+    return FlyAwayTunnelEnv(gui=True,
+                            enable_random_tunnel_rotation=True,
+                            enable_mapping=True,
+                            initial_xyz_position=INIT_XYZS,
+                            initial_rpy_attitude=INIT_RPYS,
+                            tunnel_length=30,
+                            tunnel_width=1,
+                            tunnel_height=1,
+                            lidar_rays_count=10,
+                            max_episode_duration=30,
+                            enable_lidar_rays_debug=True)
 
 def make_env(evaluation=False):
     def _init():
@@ -138,16 +148,12 @@ def create_model():
     return model
 
 # charge un modèle à partir d'un fichier
-def load_model(filename):
+def load_model(filename, env=None):
     path = Path.cwd() / MODELS_FOLDER / filename
+    return PPO.load(path, env=create_environment(evaluation=True) if env is not None else env)
 
-    if path.exists():
-        return PPO.load(path, env=create_environment(evaluation=True))
-    else:
-        print(f'Error when loading model : "{path}" doesn\'t exist.')
-        return None
-
-# sauvegarde un modèle dans path et le nomme de la manière suivante : "prefix_timestamp.zip"
+# sauvegarde un modèle dans le dossier donné
+# par défaut, le dossier est le dossier /models/
 def save_model(model, prefix, folder = MODELS_FOLDER):
     fname = f"{prefix}_{time.strftime('%d-%H-%M-%S')}"
     path = Path.cwd() / folder / fname

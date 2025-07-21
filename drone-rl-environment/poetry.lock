@@ -1771,21 +1771,6 @@ typing-extensions = {version = ">=4.0.0,<5.0", markers = "python_version < \"3.1
 jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
-name = "sb3-contrib"
-version = "2.6.0"
-description = "Contrib package of Stable Baselines3, experimental code."
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-files = [
-    {file = "sb3_contrib-2.6.0-py3-none-any.whl", hash = "sha256:7440d2a47dcd2996c6f44286a059245f62433d2565951c445673c6a83742ecc2"},
-    {file = "sb3_contrib-2.6.0.tar.gz", hash = "sha256:eaf7f3268706ee878140decfc743b58e96182e73b5c14872e1c7017ca31e465f"},
-]
-
-[package.dependencies]
-stable_baselines3 = ">=2.6.0,<3.0"
-
-[[package]]
 name = "scipy"
 version = "1.15.3"
 description = "Fundamental algorithms for scientific computing in Python"
@@ -2343,4 +2328,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "3f989fa772c673c145cb84b65d1e6cbfbdac1c9f01b67d1c75caf1c1398cdbb4"
+content-hash = "39cb4cdc25c1f4474e28ba5c75398b361a001d97f10477278f37fce14488332b"
