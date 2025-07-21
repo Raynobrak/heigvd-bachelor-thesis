@@ -12,9 +12,14 @@ from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecMonitor, DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 
-from custom_environments.FlyAwayCeilingEnv import *
-from custom_environments.FlyAwayTunnelEnv import *
-from custom_environments.Action import *
+from sb3_contrib import QRDQN
+from torchrl.data import PrioritizedReplayBuffer
+
+from stable_baselines3.common.utils import get_linear_fn
+
+from drone_rl_environment.custom_environments.FlyAwayCeilingEnv import *
+from drone_rl_environment.custom_environments.FlyAwayTunnelEnv import *
+from drone_rl_environment.custom_environments.Action import *
 from gym_pybullet_drones.utils.utils import sync
 
 # position de départ et attitude (roll, pitch, yaw)
@@ -39,7 +44,7 @@ def make_env(evaluation=False):
             tunnel_width=1,
             tunnel_height=1,
             lidar_rays_count=10,
-            enable_lidar_rays_debug=True,
+            enable_lidar_rays_debug=False,
             enable_mapping=evaluation
         )
     return _init
@@ -48,7 +53,7 @@ def create_environment(evaluation=False):
     if evaluation:
         return DummyVecEnv([make_env(evaluation=False)])
     else:
-        num_envs = 4  # par exemple #todo constante
+        num_envs = 6  # par exemple #todo constante
         vec_env = SubprocVecEnv([make_env(evaluation=False) for _ in range(num_envs)])
         vec_env = VecMonitor(vec_env)
         return vec_env
@@ -59,7 +64,7 @@ def get_dummy_env():
 # créé un nouveau modèle de RL
 def create_model():
     dummy_env = get_dummy_env() # si aucun environnement n'est spécifié, créé un environnement artificiel qui est immédiatement détruit. c'est juste pour que ça compile
-    """model = PPO(
+    model = PPO(
         'MlpPolicy',
         env=dummy_env,
         verbose=1,
@@ -72,7 +77,7 @@ def create_model():
         policy_kwargs=dict(net_arch=[64, 64]),
         tensorboard_log=TENSORBOARD_LOGS_FOLDER,
         stats_window_size=STATS_WINDOW_SIZE
-    )"""
+    )
     """model = DDPG(
         'MlpPolicy',
         env=dummy_env,
@@ -80,35 +85,53 @@ def create_model():
         batch_size=256,
         tensorboard_log=TENSORBOARD_LOGS_FOLDER,
     )"""
-    
     #model = DQN("MlpPolicy", dummy_env, verbose=1)
     
-    model = DQN(
+    """model = DQN(
         "MlpPolicy",
         dummy_env,
-        learning_rate=5e-4,
-        buffer_size=200_000,
+        learning_rate=1e-4,
+        buffer_size=100_000,
         batch_size=64,
         learning_starts=1000,
-        train_freq=(8, "step"),
+        train_freq=(4, "step"),
         gradient_steps=1,
         target_update_interval=5_000,
         exploration_fraction=0.2,
-        exploration_final_eps=0.01,
+        exploration_final_eps=0.05,
         gamma=0.99,
-        policy_kwargs=dict(net_arch=[128,128]),
+        policy_kwargs=dict(net_arch=[64,64]),
         verbose=1,
         tensorboard_log=TENSORBOARD_LOGS_FOLDER
-    )
-    """    model = A2C(
-        policy="MlpPolicy",
-        env=dummy_env,
-        learning_rate=1e-3,
-        gamma=0.99,
+    )"""
+    """model = DQN(
+        "MlpPolicy",
+        dummy_env,
+        learning_rate=2.5e-4,
+        buffer_size=500_000,
+        batch_size=128,
+        learning_starts=5_000,
+        train_freq=(4, "step"),
+        gradient_steps=4,
+        target_update_interval=10_000,
+        gamma=0.995,
+        exploration_initial_eps=1.0,
+        exploration_fraction=0.10,
+        exploration_final_eps=0.02,
+        policy_kwargs=dict(net_arch=[128, 128]),
         max_grad_norm=10,
-        policy_kwargs=dict(net_arch=[64, 64]),
         verbose=1,
-        tensorboard_log=TENSORBOARD_LOGS_FOLDER
+        tensorboard_log=TENSORBOARD_LOGS_FOLDER,
+    )"""
+    """model = A2C(
+    policy="MlpPolicy",
+    env=dummy_env,
+    learning_rate=1e-3,
+    gamma=0.99,
+    max_grad_norm=10,
+    policy_kwargs=dict(net_arch=[64, 64]),
+    verbose=1,
+    tensorboard_log=TENSORBOARD_LOGS_FOLDER
     )"""
 
     return model

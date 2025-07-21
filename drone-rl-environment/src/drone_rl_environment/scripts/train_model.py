@@ -13,10 +13,10 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics
 
 from stable_baselines3 import PPO,DDPG
 
-from rl_utils import *
+from drone_rl_environment.rl_utils import *
 
 def run():
-    RUN_NAME = 'dqn-long-episodes-no-lateral-movement-128-128'
+    RUN_NAME = 'ignore-dqn-test'
     STEP_PER_ITERATION = 16384 * 16
 
     #model = load_model('ppo-tunnel-nightrun_ts-21037056_11-11-50-02.zip')

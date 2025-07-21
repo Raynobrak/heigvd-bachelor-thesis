@@ -3,14 +3,14 @@ import numpy as np
 from gymnasium import spaces
 
 from gym_pybullet_drones.envs.BaseAviary import BaseAviary
-from gym_pybullet_drones.utils.enums import DroneModel
+from gym_pybullet_drones.utils.enums import DroneModel, Physics
 
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 
 from scipy.spatial.transform import Rotation as R
 
-from lidar.LidarSensor import LidarSensor
-from mapping.map import Map
+from drone_rl_environment.lidar.LidarSensor import LidarSensor
+from drone_rl_environment.mapping.map import Map
 
 from .Action import *
 
@@ -21,6 +21,7 @@ DRONE_MODEL = DroneModel.CF2X
 DEFAULT_MAX_EPISODE_DURATION = 10 # secondes
 DEFAULT_MAX_VELOCITY = 0.6 # mètres/seconde
 
+# 240 60 5 old
 DEFAULT_PYBULLET_PHYSICS_FREQ = 240 # màj physique par seconde, même valeur que l'environnement de base BaseAviary (provenant du projet gym-pybullet-drones original)
 DEFAULT_ENV_STEP_FREQ = 60 # appels à env.step() par seconde
 DEFAULT_OUTPUT_FOLDER = 'results'
@@ -28,7 +29,13 @@ DEFAULT_LIDAR_RAYS_COUNT = 14
 DEFAULT_LIDAR_MAX_DISTANCE = 12
 DEFAULT_LIDAR_FREQUENCY = DEFAULT_ENV_STEP_FREQ
 DEFAULT_ENABLE_LIDAR_RAYS = False
-DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER = 0.5
+DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER = 0.5 # todo : plus besoin, refactor
+
+DRONES_COUNT = 1
+
+DEFAULT_PHYSICS = Physics.PYB
+
+LEARNING_FREQ = 5 # todo : renommer
 
 class BaseRLSingleDroneEnv(BaseAviary):
     REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
@@ -63,10 +70,11 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
         self.rng = np.random.default_rng(seed=None) # todo : faire autrement
         super().__init__(drone_model=DRONE_MODEL,
-                         num_drones=1,
+                         num_drones=DRONES_COUNT,
                          neighbourhood_radius=0,
                          initial_xyzs=initial_xyz_position,
                          initial_rpys=initial_rpy_attitude,
+                         physics=DEFAULT_PHYSICS,
                          pyb_freq=pybullet_physics_freq,
                          ctrl_freq=env_step_freq,
                          gui=gui,
@@ -76,10 +84,10 @@ class BaseRLSingleDroneEnv(BaseAviary):
                          output_folder=DEFAULT_OUTPUT_FOLDER
                          )
                 
-        self.lidar_sensor = self.build_lidar_sensor()
-        assert(self.lidar_rays_count == self.lidar_sensor.rays_count())
 
         self.custom_reset()
+        assert(self.lidar_rays_count == self.lidar_sensor.rays_count())
+
 
     def build_lidar_sensor(self):
         return LidarSensor(
@@ -92,11 +100,14 @@ class BaseRLSingleDroneEnv(BaseAviary):
         )
 
     def specific_reset(self):
-        print('not implemented')
+        pass
+        # todo ?
 
     def custom_reset(self):
+        self.lidar_sensor = self.build_lidar_sensor()
         self.pid_controller = DSLPIDControl(drone_model=self.DRONE_MODEL) # todo : constantes + mettre ça ailleurs peut-être
         self.time_elapsed_text_id = None
+        self.time_to_next_learning_step = 1 / LEARNING_FREQ
         self.specific_reset()
 
     def reset(self, seed : int = None, options : dict = None):
@@ -176,6 +187,68 @@ class BaseRLSingleDroneEnv(BaseAviary):
             np.full(self.lidar_rays_count, 1)
         ])
         return spaces.Box(low=low, high=high, dtype=np.float32)
+    
+    # Applique la physique au drone
+    def apply_physics(self, action_rpms):
+        for _ in range(self.PYB_STEPS_PER_CTRL):
+            # stockage des informations sur la physique de l'environnement
+            if self.PYB_STEPS_PER_CTRL > 1 and self.PHYSICS in [Physics.DYN, Physics.PYB_GND, Physics.PYB_DRAG, Physics.PYB_DW, Physics.PYB_GND_DRAG_DW]:
+                self._updateAndStoreKinematicInformation()
+
+            # mise à jour de la physique en fonction du mode de physique défini (self.PHYSICS)
+            DRONE_ID = 0
+            if self.PHYSICS == Physics.PYB:
+                self._physics(action_rpms[DRONE_ID, :], DRONE_ID)
+            elif self.PHYSICS == Physics.DYN:
+                self._dynamics(action_rpms[DRONE_ID, :], DRONE_ID)
+            elif self.PHYSICS == Physics.PYB_GND:
+                self._physics(action_rpms[DRONE_ID, :], DRONE_ID)
+                self._groundEffect(action_rpms[DRONE_ID, :], DRONE_ID)
+            elif self.PHYSICS == Physics.PYB_DRAG:
+                self._physics(action_rpms[DRONE_ID, :], DRONE_ID)
+                self._drag(self.last_clipped_action[DRONE_ID, :], DRONE_ID)
+            elif self.PHYSICS == Physics.PYB_DW:
+                self._physics(action_rpms[DRONE_ID, :], DRONE_ID)
+                self._downwash(DRONE_ID)
+            elif self.PHYSICS == Physics.PYB_GND_DRAG_DW:
+                self._physics(action_rpms[DRONE_ID, :], DRONE_ID)
+                self._groundEffect(action_rpms[DRONE_ID, :], DRONE_ID)
+                self._drag(self.last_clipped_action[DRONE_ID, :], DRONE_ID)
+                self._downwash(DRONE_ID)
+            if self.PHYSICS != Physics.DYN:
+                p.stepSimulation(physicsClientId=self.CLIENT)
+            self.last_clipped_action = action_rpms
+        # stockage des informations sur la physique de l'environnement
+        self._updateAndStoreKinematicInformation()
+
+    def step_pid_only(self, action):
+        # action convertie en 4 valeurs de RPM (une pour chaque hélice du drone)
+        # NUM_DRONES vaut toujours 1 dans cet environnement
+        action_RPMs = np.reshape(self._preprocessAction(action), (DRONES_COUNT, 4))
+        self.apply_physics(action_RPMs)
+        self.step_counter = self.step_counter + (1 * self.PYB_STEPS_PER_CTRL)
+
+    def step_observation_only(self):
+        # préparation des valeurs de retour
+        obs = self._computeObs()
+        reward = self._computeReward()
+        terminated = self._computeTerminated()
+        truncated = self._computeTruncated()
+        info = self._computeInfo()
+
+        return obs, reward, terminated, truncated, info
+    
+    # Surcharge de step() de BaseAviary
+    # Légèrement adapté pour correspondre au fonctionnement de l'environnement
+    def step(self, action):
+        assert(self.CTRL_FREQ % LEARNING_FREQ == 0)
+        
+        pid_steps_per_control = int(self.CTRL_FREQ / LEARNING_FREQ)
+
+        for _ in range(pid_steps_per_control):
+            self.step_pid_only(action)
+        
+        return self.step_observation_only()
 
     # Retourne une observation de l'environnement (état du drone et de ses capteurs)
     def _computeObs(self):
@@ -196,7 +269,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
         if self.enable_mapping: 
             size = 20 # todo : constantes/paramètres
             origin = size / 2
-            res = 50
+            res = 10
             print('map resetted')
             self.map = Map(x_size=size, y_size=size, z_size=size, origin_offset=np.array([origin,origin,origin]), resolution_voxels_per_unit=res) # todo : construire que si activé
         else:
@@ -245,7 +318,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
         target_vel = self.rotate_vector_by_rpy(target_vel, target_rpy)
         target_rpy_rates = [0,0,0]
         if action == Action.ROTATE_LEFT:
-            target_rpy_rates = [0,0,np.deg2rad(360 / 3)] # vitesse de rotation : 3 tour par seconde # todo : constante pour vitesse de rotation
+            target_rpy_rates = [0,0,np.deg2rad(360 / 3)] # vitesse de rotation : 1/3 tour par seconde # todo : constante pour vitesse de rotation
         elif action == Action.ROTATE_RIGHT:
             target_rpy_rates = [0,0,-np.deg2rad(360 / 3)]
 

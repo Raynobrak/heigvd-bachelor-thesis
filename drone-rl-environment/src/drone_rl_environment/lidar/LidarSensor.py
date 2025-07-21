@@ -10,6 +10,9 @@ from scipy.spatial.transform import Rotation as R
 # - 360° autour du drone
 # - directement en-dessous du drone
 # - directement au-dessus du drone
+LINES_COLOR = [1,1,1]
+FRONT_LINE_COLR = [1,1,0]
+
 class LidarSensor:
     def __init__(self, freq, pybullet_client_id, pybullet_drone_id, nb_angles, max_distance, show_debug_rays=False):
         self.freq = freq
@@ -21,6 +24,11 @@ class LidarSensor:
 
         self.time_to_next_update = 0
         self.debug_items_ids = []
+
+    def __del__(self):
+        for id in self.debug_items_ids:
+            p.removeUserDebugItem(id, physicsClientId=self.pybullet_client_id)
+        self.debug_items_ids.clear()
 
     # inverse de la fréquence
     def time_between_updates(self):
@@ -60,10 +68,10 @@ class LidarSensor:
 
                 line_id = None
                 if i == 0:  
-                    line_id = p.addUserDebugLine(self.drone_pos, pt, [1,1,0.8]) # todo : constante pour couleur
+                    line_id = p.addUserDebugLine(self.drone_pos, pt, FRONT_LINE_COLR) # todo : constante pour couleur
                 else:
                     # affiche une ligne entre le drone et le point d'arrivée
-                    line_id = p.addUserDebugLine(self.drone_pos, pt, [0,0,0.5]) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
+                    line_id = p.addUserDebugLine(self.drone_pos, pt, LINES_COLOR) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
     
                 assert(line_id >= 0)
                 self.debug_items_ids.append(line_id)
@@ -71,27 +79,28 @@ class LidarSensor:
                 # accentue le point d'arrivée en dessinant une ligne épaisse de très petite longueur
                 # note : il existe une fonction p.addUserDebugPoints() mais il y a un bug qui fait qu'on ne peut pas supprimer ou obtenir l'ID des points ajoutés
                 # d'où l'utilisation de ce "workaround" pour pouvoir accentuer le point d'arrivée.
-                DEBUG_LINE_LENGTH = 0.1
-                #point_id = p.addUserDebugLine(pt - [0,0,DEBUG_LINE_LENGTH], pt + [0,0,DEBUG_LINE_LENGTH], [255, 0, 0], lineWidth=8)  # 0 = persistant
-                #self.debug_items_ids.append(point_id)
+                DEBUG_LINE_LENGTH = 0.05
+                point_id = p.addUserDebugLine(pt - [0,0,DEBUG_LINE_LENGTH], pt + [0,0,DEBUG_LINE_LENGTH], [255, 0, 0], lineWidth=4)  # 0 = persistant
+                assert(point_id >= 0)
+                self.debug_items_ids.append(point_id)
         else:
             points = [self.drone_pos + direction * distance for direction, distance in self.lidar_data]
             for i, pt in enumerate(points):
 
-                line_id = self.debug_items_ids[i]
+                line_id = self.debug_items_ids[i*2]
                 if i == 0:  
-                    a = p.addUserDebugLine(self.drone_pos, pt, [1,1,0.8], replaceItemUniqueId=line_id) # todo : constante pour couleur
+                    a = p.addUserDebugLine(self.drone_pos, pt, FRONT_LINE_COLR, replaceItemUniqueId=line_id) # todo : constante pour couleur
                     assert(a >= 0) # todo : fix le crash quand ça échoue après avoir reset l'env
                 else:
                     # affiche une ligne entre le drone et le point d'arrivée
-                    a= p.addUserDebugLine(self.drone_pos, pt, [0,0,0.5], replaceItemUniqueId=line_id) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
+                    a = p.addUserDebugLine(self.drone_pos, pt, LINES_COLOR, replaceItemUniqueId=line_id) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
                     assert(a >= 0) # todo : fix le crash quand ça échoue après avoir reset l'env
                 # accentue le point d'arrivée en dessinant une ligne épaisse de très petite longueur
                 # note : il existe une fonction p.addUserDebugPoints() mais il y a un bug qui fait qu'on ne peut pas supprimer ou obtenir l'ID des points ajoutés
                 # d'où l'utilisation de ce "workaround" pour pouvoir accentuer le point d'arrivée.
-                DEBUG_LINE_LENGTH = 0.1
-                #line_id = self.debug_items_ids[i*2+1]
-                #p.addUserDebugLine(pt - [0,0,DEBUG_LINE_LENGTH], pt + [0,0,DEBUG_LINE_LENGTH], [255, 0, 0], lineWidth=8, replaceItemUniqueId=line_id)  # 0 = persistant
+                DEBUG_LINE_LENGTH = 0.05
+                line_id = self.debug_items_ids[i*2+1]
+                p.addUserDebugLine(pt - [0,0,DEBUG_LINE_LENGTH], pt + [0,0,DEBUG_LINE_LENGTH], [255, 0, 0], lineWidth=4, replaceItemUniqueId=line_id)  # 0 = persistant
     
     # met à jour le capteur en fonction du temps écoulé depuis la dernière mise à jour
     # le temps écoulé est accumulé et comparé à la fréquence de rafraîchissement afin de ne pas mettre à jour le capteur à une fréquence plus haute que celle-ci.
