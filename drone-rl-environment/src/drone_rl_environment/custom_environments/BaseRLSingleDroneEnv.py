@@ -244,10 +244,21 @@ class BaseRLSingleDroneEnv(BaseAviary):
         # stockage des informations sur la physique de l'environnement
         self._updateAndStoreKinematicInformation()
 
+    def update_time_elapsed_debug_text(self):
+        # mise à jour de l'affichage du temps restant (seulement si on est en mode GUI)
+        if self.GUI:
+            if self.time_elapsed_text_id is not None:
+                p.removeUserDebugItem(self.time_elapsed_text_id)
+                self.time_elapsed_text_id = None
+            self.time_elapsed_text_id = p.addUserDebugText(str(round(self.get_elapsed_time(),1)) + ' / ' + str(round(self.max_episode_duration,1)) + ' seconds.', self.get_real_drone_pos(), textColorRGB=[0, 1, 0], textSize=1.5)
+
     def step_pid_only(self, action):
+        self.update_time_elapsed_debug_text()
+
         # action convertie en 4 valeurs de RPM (une pour chaque hélice du drone)
         # NUM_DRONES vaut toujours 1 dans cet environnement
         action_RPMs = np.reshape(self._preprocessAction(action), (DRONES_COUNT, 4))
+        
         self.apply_physics(action_RPMs)
         self.step_counter = self.step_counter + (1 * self.PYB_STEPS_PER_CTRL)
 
@@ -264,10 +275,6 @@ class BaseRLSingleDroneEnv(BaseAviary):
     # Surcharge de step() de BaseAviary
     # Légèrement adapté pour correspondre au fonctionnement de l'environnement
     def step(self, action):
-        if self.GUI:
-            if self.time_elapsed_text_id is not None:
-                p.removeUserDebugItem(self.time_elapsed_text_id)
-            self.time_elapsed_text_id = p.addUserDebugText(str(round(self.get_elapsed_time(),1)) + ' / ' + str(round(self.max_episode_duration,1)) + ' seconds.', self.get_real_drone_pos(), textColorRGB=[0, 1, 0], textSize=1.5)
 
         assert(self.CTRL_FREQ % self.action_freq == 0)
         
@@ -275,6 +282,8 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
         for _ in range(pid_steps_per_control):
             self.step_pid_only(action)
+
+        
         
         return self.step_observation_only()
 
