@@ -27,7 +27,8 @@ INIT_XYZS = np.array([[0,0,0.2]])
 INIT_RPYS = np.array([np.zeros((3,))])
 
 SLSH = '\\'
-MODELS_FOLDER = 'models' # todo : changer
+MODELS_FOLDER = 'models'
+NUM_SUBPROC_ENVS = 6
 TIMESTEPS_PER_EPOCH = 4096
 STATS_WINDOW_SIZE = 20
 TENSORBOARD_LOGS_FOLDER = "./tensorboard-logs/"
@@ -53,7 +54,7 @@ def create_environment(evaluation=False):
     if evaluation:
         return DummyVecEnv([make_env(evaluation=False)])
     else:
-        num_envs = 6  # par exemple #todo constante
+        num_envs = NUM_SUBPROC_ENVS
         vec_env = SubprocVecEnv([make_env(evaluation=False) for _ in range(num_envs)])
         vec_env = VecMonitor(vec_env)
         return vec_env
@@ -138,19 +139,13 @@ def create_model():
 
 # charge un modèle à partir d'un fichier
 def load_model(filename):
-    path = Path.cwd() / MODELS_FOLDER / filename # todo : faire ça proprement
+    path = Path.cwd() / MODELS_FOLDER / filename
 
     if path.exists():
         return PPO.load(path, env=create_environment(evaluation=True))
     else:
         print(f'Error when loading model : "{path}" doesn\'t exist.')
         return None
-
-# charge tous les modèles avec le même préfixe dans le dossier donné
-# généralement, les modèles avec le même préfixe correspondent à la même session d'entraînement
-def load_models(path, prefix):
-    # todo implémenter si besoin
-    return None
 
 # sauvegarde un modèle dans path et le nomme de la manière suivante : "prefix_timestamp.zip"
 def save_model(model, prefix, folder = MODELS_FOLDER):
@@ -164,7 +159,7 @@ def train_model_in_environment(model, timesteps=TIMESTEPS_PER_EPOCH, training_en
         training_env = create_environment(evaluation=False)
 
     print(f"Training model for {timesteps} steps...")
-    model.set_env(training_env) # todo : tb_log_name paramètre
+    model.set_env(training_env)
     model.learn(total_timesteps=timesteps, progress_bar=True, callback=None, reset_num_timesteps=False, tb_log_name=tb_run_name)
     training_env.close() # nécessaire de fermer l'environnement car pybullet ne peut pas avoir plusieurs environnements de simulation en parallèle (entraînement + évaluation/visualisation)
 

@@ -16,14 +16,14 @@ def make_eval_env():
                             enable_lidar_rays_debug=False)
 
 def visualize_model(model_filename):
-    path = Path.cwd() / MODELS_FOLDER / model_filename # todo : faire ça proprement
+    path = Path.cwd() / MODELS_FOLDER / model_filename
     eval_env = VecMonitor(DummyVecEnv([make_eval_env]))
 
     print('Loading model from file...')
     model = PPO.load(path, env=eval_env) 
     print('...Done !')
 
-    ACTION_FREQ = eval_env.envs[0].CTRL_FREQ / LEARNING_FREQ
+    ACTION_FREQ = eval_env.envs[0].CTRL_FREQ / DEFAULT_ACTION_FREQ
 
     episodes_rewards = []
     episodes_durations = []
@@ -68,6 +68,8 @@ def visualize_model(model_filename):
 
     print(sum(episodes_rewards))
     print(len(episodes_rewards))
+
+    # todo : histogrammes matplotlib
     
     print('Résumé :')
     print(f'- Reward moyen : {reward_avg}')

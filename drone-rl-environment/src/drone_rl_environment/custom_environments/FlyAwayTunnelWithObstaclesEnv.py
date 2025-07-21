@@ -4,5 +4,6 @@ class FlyAwayTunnelWithObstaclesEnv(FlyAwayTunnelEnv):
     def _addObstacles(self):
         super()._addObstacles() # ajout du tunnel
 
-        # todo : génération procédurale des obstacles dans le tunnel
+        raise Exception('not implemented')
+        # todo : génération procédurale d'obstacles ou de virages dans le tunnel
         

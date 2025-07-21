@@ -18,7 +18,8 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
                  walls_width = DEFAULT_WALLS_WIDTH,
                  tunnel_extra_room = DEFAULT_TUNNEL_EXTRA_ROOM,
                  pybullet_physics_freq=DEFAULT_PYBULLET_PHYSICS_FREQ,
-                 env_step_freq=DEFAULT_ENV_STEP_FREQ,
+                 pid_controller_freq=DEFAULT_PID_CONTROLLER_FREQ,
+                 action_freq=DEFAULT_ACTION_FREQ,
                  lidar_rays_count=DEFAULT_LIDAR_RAYS_COUNT,
                  lidar_max_distance=DEFAULT_LIDAR_MAX_DISTANCE,
                  lidar_freq=DEFAULT_LIDAR_FREQUENCY,
@@ -28,7 +29,7 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
                  initial_rpy_attitude=None,
                  max_drone_velocity=DEFAULT_MAX_VELOCITY,
                  max_episode_duration=DEFAULT_MAX_EPISODE_DURATION,
-                 drone_lateral_speed_multiplier=DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER,
+                 drone_up_and_down_speed_multiplier=DEFAULT_DRONE_UP_AND_DOWN_SPEED_MULTIPLIER,
                  gui=False,
                  ):
         self.enable_random_tunnel_rotation = enable_random_tunnel_rotation
@@ -39,7 +40,8 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
         self.default_tunnel_extra_room = tunnel_extra_room
 
         super().__init__(pybullet_physics_freq=pybullet_physics_freq,
-                         env_step_freq=env_step_freq,
+                         pid_controller_freq=pid_controller_freq,
+                         action_freq=action_freq,
                          lidar_rays_count=lidar_rays_count,
                          lidar_max_distance=lidar_max_distance,
                          lidar_freq=lidar_freq,
@@ -49,7 +51,7 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
                          initial_rpy_attitude=initial_rpy_attitude,
                          max_drone_velocity=max_drone_velocity,
                          max_episode_duration=max_episode_duration,
-                         drone_lateral_speed_multiplier=drone_lateral_speed_multiplier,
+                         drone_up_and_down_speed_multiplier=drone_up_and_down_speed_multiplier,
                          gui=gui
                          )
 

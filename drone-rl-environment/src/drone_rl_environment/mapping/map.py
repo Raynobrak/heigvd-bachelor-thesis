@@ -10,12 +10,12 @@ LAST_POSITION_COLOR = (0,0,255)
 class Map:
     # Construit la carte. x,y et z doivent être spécifiés en coordonnées "monde" (mètres par exemple) et resolution_voxels_per_unit correspond à la sous-division de cette unité en unités plus petites.
     # Si x,y,z = 2,2,2 et que la résolution vaut 10, alors la carte contiendra 20^3 valeurs donc chaque mètre cube est divisé en voxels de 10*10*10 centimètres
-    def __init__(self, x_size, y_size, z_size, origin_offset, resolution_voxels_per_unit):
+    def __init__(self, xyz_size, origin_offset, resolution_voxels_per_unit):
         print('carte créée')
         self.origin_offset = origin_offset # coordonnées du point 0,0 en mètres
         self.resolution_voxels_per_unit = resolution_voxels_per_unit
         self.voxel_size = np.array([1,1,1]) / self.resolution_voxels_per_unit
-        self.matrix = np.zeros(shape=resolution_voxels_per_unit * np.array([x_size, y_size, z_size]))
+        self.matrix = np.zeros(shape=resolution_voxels_per_unit * xyz_size)
 
         self.position_history = []
     

@@ -3,17 +3,24 @@ import pybullet as p
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-# todo : méthode getRaysDirections() surhcargée dans les classes dérivées pour avoir plusieurs types de lidar
+
+
+LIDAR_DEBUG_LINES_COLOR = [1,1,1]
+LIDAR_FRONT_DEBUG_LINE_COLOR = [1,1,0]
+CONTACT_POINT_DEBUG_LINE_LENGTH = 0.025
+CONTACT_POINT_DEBUG_LINE_WIDTH = 4
+
 
 # Représente un capteur LiDAR simulé.
 # le capteur LIDAR scanne les angles suivants :
-# - 360° autour du drone
-# - directement en-dessous du drone
-# - directement au-dessus du drone
-LINES_COLOR = [1,1,1]
-FRONT_LINE_COLR = [1,1,0]
-
+# - n angles à 360° autour du drone
+# - 1 angle directement en-dessous du drone
+# - 1 angle directement au-dessus du drone
 class LidarSensor:
+    # Créé un capteur lidar
+    # nb_angles spécifie le nombre d'angles totaux. Les rayons verticaux ne sont pas compris dans ce nombre.
+    # P.ex. pour avoir 4 rayons horizontaux, il faudrait spécifier nb_angles=4 et le nombre de rayons total sera de 6
+    # show_debug_rays permet d'activer l'affichage des rayons, à condition que la simulation tourne en mode gui.
     def __init__(self, freq, pybullet_client_id, pybullet_drone_id, nb_angles, max_distance, show_debug_rays=False):
         self.freq = freq
         self.pybullet_client_id = pybullet_client_id
@@ -34,73 +41,43 @@ class LidarSensor:
     def time_between_updates(self):
         return 1. / self.freq
 
-    # active la visualisation des rayons du lidar
-    def enable_debug_vizualiser(self):
-        self.show_debug_rays = True
-        self.update_debug_visualization()
-
-    # supprime tous les éléments de la visualisation
-    def clear_debug_items(self):
-        self.debug_items_ids.clear()
-        return
-        for id in self.debug_items_ids:
-            p.removeUserDebugItem(id, physicsClientId=self.pybullet_client_id)
-        self.debug_items_ids.clear()
-
-    # désactive la visualisation du lidar
-    def disable_debug_visualizer(self):
-        self.clear_debug_items()
-        self.enable_debug_vizualiser = False
-
     def rays_count(self):
         return self.nb_angles + 2 # un certain nombre d'angle + les capteurs de distance en haut et en bas
 
-    # met à jour la visualisation en fonction du dernier scan effectué
+    # Met à jour la visualisation en fonction du dernier scan effectué
     def update_debug_visualization(self):
-        n = len(self.debug_items_ids)
-        #self.clear_debug_items() # suppression des objets du scan précédent
+        points = self.read_global_points()
 
-        ids_present = n > 0
+        # si la liste des ids d'objets debug n'est pas vide, on ne doit pas les recréer mais simplement les mettre à jour
+        lines_exist = len(self.debug_items_ids) > 0
 
-        if not ids_present:
-            points = [self.drone_pos + direction * distance for direction, distance in self.lidar_data]
-            for i, pt in enumerate(points):
+        for i, pt in enumerate(points):
+            line_color = LIDAR_FRONT_DEBUG_LINE_COLOR if i == 0 else LIDAR_DEBUG_LINES_COLOR
 
-                line_id = None
-                if i == 0:  
-                    line_id = p.addUserDebugLine(self.drone_pos, pt, FRONT_LINE_COLR) # todo : constante pour couleur
-                else:
-                    # affiche une ligne entre le drone et le point d'arrivée
-                    line_id = p.addUserDebugLine(self.drone_pos, pt, LINES_COLOR) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
-    
+            # si les lignes n'existe pas, on doit d'abord les créer
+            if lines_exist: 
+                line_id = self.debug_items_ids[i*2]
+                id = p.addUserDebugLine(self.drone_pos, pt, line_color, replaceItemUniqueId=line_id)
+                assert(id == line_id)
+                
+                # accentue le point d'arrivée en dessinant une ligne épaisse de très petite longueur
+                # note : il existe une fonction p.addUserDebugPoints() mais il y a un bug qui fait qu'on ne peut pas supprimer ou obtenir l'ID des points ajoutés
+                # d'où l'utilisation de ce "workaround" pour pouvoir ajouter un marqueur au point d'arrivée.
+                contact_line_id = self.debug_items_ids[i*2+1]
+                id = p.addUserDebugLine(pt - [0,0,CONTACT_POINT_DEBUG_LINE_LENGTH], pt + [0,0,CONTACT_POINT_DEBUG_LINE_LENGTH], [255, 0, 0], lineWidth=CONTACT_POINT_DEBUG_LINE_WIDTH, replaceItemUniqueId=contact_line_id)  # 0 = persistant
+                assert(id == contact_line_id)
+            else:
+                line_id = p.addUserDebugLine(self.drone_pos, pt, line_color)
+
                 assert(line_id >= 0)
                 self.debug_items_ids.append(line_id)
 
                 # accentue le point d'arrivée en dessinant une ligne épaisse de très petite longueur
                 # note : il existe une fonction p.addUserDebugPoints() mais il y a un bug qui fait qu'on ne peut pas supprimer ou obtenir l'ID des points ajoutés
-                # d'où l'utilisation de ce "workaround" pour pouvoir accentuer le point d'arrivée.
-                DEBUG_LINE_LENGTH = 0.05
-                point_id = p.addUserDebugLine(pt - [0,0,DEBUG_LINE_LENGTH], pt + [0,0,DEBUG_LINE_LENGTH], [255, 0, 0], lineWidth=4)  # 0 = persistant
-                assert(point_id >= 0)
-                self.debug_items_ids.append(point_id)
-        else:
-            points = [self.drone_pos + direction * distance for direction, distance in self.lidar_data]
-            for i, pt in enumerate(points):
-
-                line_id = self.debug_items_ids[i*2]
-                if i == 0:  
-                    a = p.addUserDebugLine(self.drone_pos, pt, FRONT_LINE_COLR, replaceItemUniqueId=line_id) # todo : constante pour couleur
-                    assert(a >= 0) # todo : fix le crash quand ça échoue après avoir reset l'env
-                else:
-                    # affiche une ligne entre le drone et le point d'arrivée
-                    a = p.addUserDebugLine(self.drone_pos, pt, LINES_COLOR, replaceItemUniqueId=line_id) # todo utiliser et implémenter la fonction faite pour + constante pour la couleur
-                    assert(a >= 0) # todo : fix le crash quand ça échoue après avoir reset l'env
-                # accentue le point d'arrivée en dessinant une ligne épaisse de très petite longueur
-                # note : il existe une fonction p.addUserDebugPoints() mais il y a un bug qui fait qu'on ne peut pas supprimer ou obtenir l'ID des points ajoutés
-                # d'où l'utilisation de ce "workaround" pour pouvoir accentuer le point d'arrivée.
-                DEBUG_LINE_LENGTH = 0.05
-                line_id = self.debug_items_ids[i*2+1]
-                p.addUserDebugLine(pt - [0,0,DEBUG_LINE_LENGTH], pt + [0,0,DEBUG_LINE_LENGTH], [255, 0, 0], lineWidth=4, replaceItemUniqueId=line_id)  # 0 = persistant
+                # d'où l'utilisation de ce "workaround" pour pouvoir ajouter un marqueur au point d'arrivée.
+                contact_line_id = p.addUserDebugLine(pt - [0,0,CONTACT_POINT_DEBUG_LINE_LENGTH], pt + [0,0,CONTACT_POINT_DEBUG_LINE_LENGTH], [255, 0, 0], lineWidth=CONTACT_POINT_DEBUG_LINE_WIDTH)  # 0 = persistant
+                assert(contact_line_id >= 0)
+                self.debug_items_ids.append(contact_line_id)
     
     # met à jour le capteur en fonction du temps écoulé depuis la dernière mise à jour
     # le temps écoulé est accumulé et comparé à la fréquence de rafraîchissement afin de ne pas mettre à jour le capteur à une fréquence plus haute que celle-ci.
@@ -111,12 +88,12 @@ class LidarSensor:
             self._compute_internal_data()
             if self.show_debug_rays:
                 self.update_debug_visualization()
-
     
     # calcule les distances LiDAR internes. à n'appeler que lorsque la fréquence de rafraîchissement est atteinte
     def _compute_internal_data(self):
         self.lidar_data = []
         
+        # obtention de l'état du drone
         self.drone_pos, orientation_quat = p.getBasePositionAndOrientation(self.pybullet_drone_id, self.pybullet_client_id)
 
         # obtention d'une matrice de rotation à partir du quaternion
@@ -131,7 +108,6 @@ class LidarSensor:
 
             # direction réelle prenant en compte l'attitude (orientation) du drone
             real_dir = rot_matrix @ local_dir
-
             rays_directions.append(real_dir)
 
         # rayons supplémentaires qui pointent en haut et en bas
@@ -144,16 +120,16 @@ class LidarSensor:
         results = p.rayTestBatch(ray_starts, ray_ends)
         for i, r in enumerate(results):
             hit = r[0] != -1
-            hit_fraction = r[2]  # 0.0 à 1.0 de la distance max
+            hit_fraction = r[2]
             distance = hit_fraction * self.max_distance if hit else self.max_distance
             
             # ajout de la donnée pour un angle : un tuple (direction,distance), la direction est un vecteur 3D
             self.lidar_data.append((rays_directions[i], distance))
     
     # retourne une liste contenant toutes les distances
-    # NOTE : si cette fonction est appelé durant un intervalle de temps inférieur à la fréquence de rafraîchissement du capteur, les valeurs retournées seront les mêmes.
+    # NOTE : si cette fonction est appelé deux fois durant un intervalle de temps inférieur à la fréquence de rafraîchissement du capteur, les valeurs retournées seront les mêmes.
     def read_distances(self):
-        dir, distances = zip(*self.lidar_data)
+        directions, distances = zip(*self.lidar_data)
         return np.array(distances)
     
     # comme read_distances() mais les distances sont normalisées entre 0 et 1 en fonction de la distance max du capteur

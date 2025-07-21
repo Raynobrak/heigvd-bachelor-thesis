@@ -30,7 +30,7 @@ def visualize_model(model_filename):
     model = PPO.load(path, env=eval_env) 
     print('...Done !')
 
-    ACTION_FREQ = eval_env.envs[0].CTRL_FREQ / LEARNING_FREQ
+    ACTION_FREQ = eval_env.envs[0].CTRL_FREQ / DEFAULT_ACTION_FREQ
 
     for i in range(30):
         obs = eval_env.reset()
@@ -62,7 +62,7 @@ def visualize_model(model_filename):
             step += 1
 
         print('épisode terminé', step)
-        eval_env.envs[0].save_map(filename='map-'+str(i)+'.png')
+        eval_env.envs[0].save_map(filename='map-'+str(i)+'.png') # todo : sauvegarde dans un dossier fixe
         #eval_env.close()
 
 if __name__ == '__main__':

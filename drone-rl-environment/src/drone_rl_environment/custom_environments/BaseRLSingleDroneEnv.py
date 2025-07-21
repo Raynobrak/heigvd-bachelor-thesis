@@ -23,27 +23,31 @@ DEFAULT_MAX_VELOCITY = 0.6 # mètres/seconde
 
 # 240 60 5 old
 DEFAULT_PYBULLET_PHYSICS_FREQ = 240 # màj physique par seconde, même valeur que l'environnement de base BaseAviary (provenant du projet gym-pybullet-drones original)
-DEFAULT_ENV_STEP_FREQ = 60 # appels à env.step() par seconde
+DEFAULT_PID_CONTROLLER_FREQ = 60 # fréquence de contrôle du contrôlleur PID
+DEFAULT_ACTION_FREQ = 5 # fréquence d'appel à step(), fréquence d'action de la simulation
+
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_LIDAR_RAYS_COUNT = 14
 DEFAULT_LIDAR_MAX_DISTANCE = 12
-DEFAULT_LIDAR_FREQUENCY = DEFAULT_ENV_STEP_FREQ
+DEFAULT_LIDAR_FREQUENCY = DEFAULT_PID_CONTROLLER_FREQ
 DEFAULT_ENABLE_LIDAR_RAYS = False
-DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER = 0.5 # todo : plus besoin, refactor
+DEFAULT_DRONE_UP_AND_DOWN_SPEED_MULTIPLIER = 0.5
+DEFAULT_DRONE_MAX_ROTATION_RATE = np.deg2rad(360 / 3) # vitesse de rotation (yaw = lacet) exprimée en radians/seconde
 
 DRONES_COUNT = 1
 
 DEFAULT_PHYSICS = Physics.PYB
 
-LEARNING_FREQ = 5 # todo : renommer
+MAP_WIDTH_METERS = 20 # largeur de la zone mappable (voir Map.py)
+MAP_HEIGHT_METERS = 5 # hauteur de la zone mappable (voir Map.py)
+MAP_RESOLUTION = 10 # sous-division de la zone mappable. 10 -> chaque mètre cube est divisée en blocs de 10x10x10cm
 
 class BaseRLSingleDroneEnv(BaseAviary):
-    REWARD_TARGET = np.array([1,1,0.5]) # todo : enlever ce truc en dur
-
     # Initialise l'environnement
     def __init__(self,
                  pybullet_physics_freq=DEFAULT_PYBULLET_PHYSICS_FREQ,
-                 env_step_freq=DEFAULT_ENV_STEP_FREQ,
+                 pid_controller_freq=DEFAULT_PID_CONTROLLER_FREQ,
+                 action_freq=DEFAULT_ACTION_FREQ,
                  lidar_rays_count=DEFAULT_LIDAR_RAYS_COUNT,
                  lidar_max_distance=DEFAULT_LIDAR_MAX_DISTANCE,
                  lidar_freq=DEFAULT_LIDAR_FREQUENCY,
@@ -53,7 +57,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
                  initial_rpy_attitude=None,
                  max_drone_velocity=DEFAULT_MAX_VELOCITY,
                  max_episode_duration=DEFAULT_MAX_EPISODE_DURATION,
-                 drone_lateral_speed_multiplier = DEFAULT_DRONE_LATERAL_SPEED_MULTIPLIER,
+                 drone_up_and_down_speed_multiplier = DEFAULT_DRONE_UP_AND_DOWN_SPEED_MULTIPLIER,
                  gui=False,
                  ):
         
@@ -66,9 +70,12 @@ class BaseRLSingleDroneEnv(BaseAviary):
         self.max_drone_velocity = max_drone_velocity
         self.max_episode_duration = max_episode_duration
 
-        self.drone_lateral_speed_multiplier = drone_lateral_speed_multiplier
+        self.drone_up_and_down_speed_multiplier = drone_up_and_down_speed_multiplier
 
-        self.rng = np.random.default_rng(seed=None) # todo : faire autrement
+        self.action_freq = action_freq
+
+        self.rng = np.random.default_rng(seed=None)
+
         super().__init__(drone_model=DRONE_MODEL,
                          num_drones=DRONES_COUNT,
                          neighbourhood_radius=0,
@@ -76,7 +83,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
                          initial_rpys=initial_rpy_attitude,
                          physics=DEFAULT_PHYSICS,
                          pyb_freq=pybullet_physics_freq,
-                         ctrl_freq=env_step_freq,
+                         ctrl_freq=pid_controller_freq,
                          gui=gui,
                          record=False,
                          obstacles=True,
@@ -99,15 +106,14 @@ class BaseRLSingleDroneEnv(BaseAviary):
             show_debug_rays=self.enable_lidar_rays_debug
         )
 
+    # réinitialisation spécifique appelée à la fin de custom_reset(), à surcharger dans les sous-classes
     def specific_reset(self):
         pass
-        # todo ?
 
     def custom_reset(self):
         self.lidar_sensor = self.build_lidar_sensor()
-        self.pid_controller = DSLPIDControl(drone_model=self.DRONE_MODEL) # todo : constantes + mettre ça ailleurs peut-être
+        self.pid_controller = DSLPIDControl(drone_model=self.DRONE_MODEL)
         self.time_elapsed_text_id = None
-        self.time_to_next_learning_step = 1 / LEARNING_FREQ
         self.specific_reset()
 
     def reset(self, seed : int = None, options : dict = None):
@@ -116,9 +122,12 @@ class BaseRLSingleDroneEnv(BaseAviary):
     
     # Méthode appelée par la classe mère (BaseAviary) au moment de reset() l'environnement
     # Ajoute les obstacles dans l'environnement
+    # Surcharger dans les sous-classes pour ajouter des obstacles
     def _addObstacles(self):
         pass
 
+    # Méthode utilitaire permettant d'ajouter un obstacle fixe simplement à l'environnement
+    # Les paramètres sont la position du centre de l'obstacle, sa taille totale, sa couleur et sa rotation
     def add_fixed_obstacle(self, center_pos, size, rgba_color=[1,0,0,0.3], rotation_rpy=[0,0,0]):
         center_pos = np.array(center_pos)
         size = np.array(size)
@@ -132,7 +141,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
         visual_shape = p.createVisualShape(p.GEOM_BOX, halfExtents=half_size, rgbaColor=rgba_color)
 
-        body_id = p.createMultiBody(
+        p.createMultiBody(
             baseMass=0,
             baseCollisionShapeIndex=col_shape,
             baseVisualShapeIndex=visual_shape,
@@ -141,35 +150,49 @@ class BaseRLSingleDroneEnv(BaseAviary):
             baseOrientation=p.getQuaternionFromEuler(rotation_rpy)
         )
 
-        # todo : voir pour utiliser une texture
-        #tex_id = p.loadTexture(r'C:\Users\lcsch\OneDrive - HESSO\Semestre6\TB\heigvd-bachelor-thesis\drone-rl-environment\src\drone_rl_environment\texture.png')
-        #p.changeVisualShape(body_id, -1, textureUniqueId=tex_id)
-
     # retourne la position réelle du drone dans la simulation (ground-truth)
-    def get_real_drone_pos(self):
-        return self.pos[0,:] 
+    def get_real_drone_pos(self): return self.pos[0,:] 
     
     # retourne la position estimée du drone dans la simulation
-    # par défaut, c'est la position réelle. en cas d'implémentation d'un SLAM, surcharger cette méthode
-    def get_estimated_drone_pos(self):
-        return self.get_real_drone_pos() #todo : émuler slam
+    # pour ajouter du bruit ou une manière alternative d'obtenir cette information, c'est cette méthode qu'il faut modifier/surcharger
+    def get_estimated_drone_pos(self): return self.get_real_drone_pos()
     
     # retourne la vitesse réelle (vecteur 3D) du drone dans la simulation (ground-truth)
-    def get_real_drone_velocity(self):
-        return self.vel[0,:]
+    def get_real_drone_velocity(self): return self.vel[0,:]
     
     # retourne la vitesse (vecteur 3D) estimée du drone dans la simulation
-    # par défaut, c'est la vitesse réelle. en cas d'implémentation d'un SLAM, surcharger cette méthode
-    def get_estimated_drone_velocity(self):
-        return self.get_real_drone_velocity() # todo : émuler slam
+    # pour ajouter du bruit ou une manière alternative d'obtenir cette information, c'est cette méthode qu'il faut modifier/surcharger
+    def get_estimated_drone_velocity(self): return self.get_real_drone_velocity()
     
-        # retourne l'orientation réelle du drone en RPY (roll, pitch, yaw)
-    def get_real_drone_attitude(self):
-        return self.rpy[0,:]
+    # retourne l'orientation réelle du drone en RPY (roll, pitch, yaw)
+    def get_real_drone_attitude(self): return self.rpy[0,:]
     
     # retourne une estimation de l'attitude du drone en RPY (roll, pitch, yaw)
-    def get_estimated_drone_attitude(self):
-        return self.get_real_drone_attitude() # todo : émuler slam
+    # pour ajouter du bruit ou une manière alternative d'obtenir cette information, c'est cette méthode qu'il faut modifier/surcharger
+    def get_estimated_drone_attitude_rpy(self): return self.get_real_drone_attitude()
+    
+    # retourne une estimation de l'attitude du drone au format quaternion
+    # pour ajouter du bruit ou une manière alternative d'obtenir cette information, c'est cette méthode qu'il faut modifier/surcharger
+    def get_estimated_drone_attitude_quaternion(self): return p.getQuaternionFromEuler(self.get_estimated_drone_attitude_rpy())
+    
+    # retourne la vitesse angulaire réelle en RPY du drone
+    def get_real_angular_vel_rpy(self): return self.ang_v[0,:]
+    
+    # retourne la vitesse angulaire estimée en RPY du drone
+    # pour ajouter du bruit ou une manière alternative d'obtenir cette information, c'est cette méthode qu'il faut modifier/surcharger
+    def get_estimated_angular_vel_rpy(self): return self.get_real_angular_vel_rpy()
+    
+    # retourne un vecteur représentant une estimation de l'état du drone
+    # dans l'état actuel du projet, l'état estimé est le même que l'état réel mais cette structure permet une amélioration future
+    def get_estimated_drone_state(self):
+        state = np.array(self._getDroneStateVector(0))
+        state[0:3] = self.get_estimated_drone_pos()
+        state[3:7] = self.get_estimated_drone_attitude_quaternion()
+        state[7:10] = self.get_estimated_drone_attitude_rpy()
+        state[10:13] = self.get_estimated_drone_velocity()
+        state[13:16] = self.get_estimated_angular_vel_rpy()
+        state[16:20] = np.zeros((4,)) # correspond à la dernière action (RPM des hélices), mise à zéro ici 
+        return state
 
     # retourne le temps écoulé depuis le début de l'épisode
     def get_elapsed_time(self):
@@ -241,9 +264,14 @@ class BaseRLSingleDroneEnv(BaseAviary):
     # Surcharge de step() de BaseAviary
     # Légèrement adapté pour correspondre au fonctionnement de l'environnement
     def step(self, action):
-        assert(self.CTRL_FREQ % LEARNING_FREQ == 0)
+        if self.GUI:
+            if self.time_elapsed_text_id is not None:
+                p.removeUserDebugItem(self.time_elapsed_text_id)
+            self.time_elapsed_text_id = p.addUserDebugText(str(round(self.get_elapsed_time(),1)) + ' / ' + str(round(self.max_episode_duration,1)) + ' seconds.', self.get_real_drone_pos(), textColorRGB=[0, 1, 0], textSize=1.5)
+
+        assert(self.CTRL_FREQ % self.action_freq == 0)
         
-        pid_steps_per_control = int(self.CTRL_FREQ / LEARNING_FREQ)
+        pid_steps_per_control = int(self.CTRL_FREQ / self.action_freq)
 
         for _ in range(pid_steps_per_control):
             self.step_pid_only(action)
@@ -254,81 +282,64 @@ class BaseRLSingleDroneEnv(BaseAviary):
     def _computeObs(self):
         self.lidar_sensor.update(1. / self.CTRL_FREQ)
 
-        # todo : mettre l'affichage de debug ailleurs
-        if self.GUI:
-            if self.time_elapsed_text_id is not None:
-                p.removeUserDebugItem(self.time_elapsed_text_id)
-            self.time_elapsed_text_id = p.addUserDebugText(str(round(self.get_elapsed_time(),1)) + ' / ' + str(round(self.max_episode_duration,1)) + ' seconds.', self.get_real_drone_pos(), textColorRGB=[0, 1, 0], textSize=1.5)
-
         observation = np.zeros(self._observationSpace().shape)
-        observation[0:self.lidar_rays_count] = np.array(self.lidar_sensor.read_distances()) / self.lidar_max_distance
+        observation[0:self.lidar_rays_count] = self.lidar_sensor.read_normalized_distances()
 
         return observation
     
     def reset_map(self):
-        if self.enable_mapping: 
-            size = 20 # todo : constantes/paramètres
-            origin = size / 2
-            res = 10
-            print('map resetted')
-            self.map = Map(x_size=size, y_size=size, z_size=size, origin_offset=np.array([origin,origin,origin]), resolution_voxels_per_unit=res) # todo : construire que si activé
-        else:
+        if not self.enable_mapping:
             raise('error : could not create map; mapping is disabled.')
-    
+        
+        size = np.array([MAP_WIDTH_METERS,MAP_WIDTH_METERS,MAP_HEIGHT_METERS])
+        origin = size / 2
+        self.map = Map(xyz_size=size, origin_offset=origin, resolution_voxels_per_unit=MAP_RESOLUTION)
+        
     def update_map(self):
-        if self.is_done():
-            print('uuuuh wtf')
-        if self.enable_mapping:
-            self.map.add_scan(local_scan_points=self.lidar_sensor.read_local_points(), sensor_position=self.get_real_drone_pos(), max_distance=self.lidar_max_distance)
-        else:
+        if not self.enable_mapping:
             raise('error : could not update map; mapping is disabled.')
         
-    def is_done(self):
-        return self._computeTerminated() or self._computeTruncated()
+        self.map.add_scan(local_scan_points=self.lidar_sensor.read_local_points(), sensor_position=self.get_estimated_drone_pos(), max_distance=self.lidar_max_distance)            
     
-    def rotate_vector_by_rpy(self, pos, rpy):
+    def rotate_vector_by_rpy(self, pos, rpy): # todo move to other file
         orientation_quat = p.getQuaternionFromEuler(rpy)
         rot_matrix = R.from_quat(orientation_quat).as_matrix()
         return rot_matrix @ np.array(pos)
 
     # Méthode appellée automatiquement par la classe parente.
-    # Convertir l'action (voir _actionSpace()) en 4 valeurs : RPM des quatres moteurs.
+    # Convertit l'action (voir _actionSpace()) en 4 valeurs : RPM des quatres moteurs.
     # Dans notre cas, l'action (vecteur vitesse cible) est convertie en RPM grâce à l'implémentation
     # de DSLPIDControl, un contrôleur PID implémenté par gym-pybullet-drones et qui provient de UTIAS DSL (Dynamic Systems Lab)
     def _preprocessAction(self, action):
-        #todo refactor
-        obs = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
-        state = obs[0]
-        target_pos = self.get_real_drone_pos() # todo : position réelle ou estimée ?
-        target_rpy = self.INIT_RPYS[0,:]
-        
-        #target_vel = action.reshape(-1)
+        # la position cible est la position actuelle du drone
+        # cela a pour effet de désactiver la position cible, on contrôle le déplacement avec un vecteur de vitesse (déclaré plus bas)
+        target_pos = self.get_estimated_drone_pos()
 
-        # todo : normaliser la vitesse pour que ça rentre dans self.max_drone_velocity
+        # pareil pour l'attitude cible, on contrôlera la rotation avec un vecteur de vitesse de rotation    
+        target_rpy = self.get_estimated_drone_attitude_rpy()
 
-        target_pos = self.get_real_drone_pos()
-
-        target_rpy = self.get_real_drone_attitude()
+        # la direction cible dépend de l'action choisie (voir classe Action)
+        # si l'action n'implique pas de déplacement, la direction retournée est un vecteur nul
+        # si le drone se déplace vers le haut ou le bas, sa vitesse cible est diminuée
         target_dir = np.array(action_to_direction(action))
-
-        # si le drone va en avant, la vélocité est maximale. si le drone va sur les côtés (DRIFT_LEFT ou DRIFT_RIGHT), cette vitesse est diminuée (par self.drone_lateral_speed_multiplier)
-        speed = self.max_drone_velocity if action == Action.FORWARD else self.max_drone_velocity * self.drone_lateral_speed_multiplier
+        speed = self.max_drone_velocity if action == Action.FORWARD else self.max_drone_velocity * self.drone_up_and_down_speed_multiplier
         target_vel = target_dir * speed
 
+        # ajustement du vecteur vitesse cible en fonction de l'attitude du drone
         target_vel = self.rotate_vector_by_rpy(target_vel, target_rpy)
-        target_rpy_rates = [0,0,0]
-        if action == Action.ROTATE_LEFT:
-            target_rpy_rates = [0,0,np.deg2rad(360 / 3)] # vitesse de rotation : 1/3 tour par seconde # todo : constante pour vitesse de rotation
-        elif action == Action.ROTATE_RIGHT:
-            target_rpy_rates = [0,0,-np.deg2rad(360 / 3)]
 
+        # calcul de la vitesse de rotation cible
+        rotation_dir = np.array(action_to_rotation_vector(action))
+        target_rpy_rates = rotation_dir * DEFAULT_DRONE_MAX_ROTATION_RATE
+
+        # calcul des nouveaux RPMs des hélices en fonction de l'état actuel estimé du drone et des valeurs cibles (vitesse de déplacement et de rotation)
+        state = self.get_estimated_drone_state()
         target_rpms = self.pid_controller.computeControlFromState(control_timestep=self.CTRL_TIMESTEP,
                                                                   state=state,
                                                                   target_pos=target_pos,
                                                                   target_rpy=target_rpy,
                                                                   target_vel=target_vel,
                                                                   target_rpy_rates=target_rpy_rates)
-        
         return np.array(np.clip(target_rpms[0], 0, self.MAX_RPM))
     
     def save_map(self, filename):
@@ -336,12 +347,6 @@ class BaseRLSingleDroneEnv(BaseAviary):
             raise('error : could not save map; mapping is disabled.')
         else:
             self.map.save_2D_map_to_file(filename)
-    
-    # Retourne la distance euclidienne entre le drone et le point cible
-    def distance_to_target(self):
-        current_pos = self.get_estimated_drone_pos()
-        distance = np.linalg.norm(self.REWARD_TARGET - current_pos)
-        return distance
     
     # retourne True si le drone est en contact avec un obstacle, sinon False
     def check_for_collisions(self):
@@ -351,7 +356,7 @@ class BaseRLSingleDroneEnv(BaseAviary):
 
     # Calcule le reward en fonction de l'état actuel de l'environnement
     def _computeReward(self):
-        return 0
+        raise Exception("not implemented, must be implemented in subclasses")
     
     # Retourne True si l'épisode doit être considéré comme étant terminé.
     def _computeTerminated(self):
