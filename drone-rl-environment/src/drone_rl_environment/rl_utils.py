@@ -27,7 +27,7 @@ INIT_XYZS = np.array([[0,0,0.2]])
 INIT_RPYS = np.array([np.zeros((3,))])
 
 SLSH = '\\'
-SAVE_FOLDER = r".\models"+SLSH # todo : changer
+MODELS_FOLDER = 'models' # todo : changer
 TIMESTEPS_PER_EPOCH = 4096
 STATS_WINDOW_SIZE = 20
 TENSORBOARD_LOGS_FOLDER = "./tensorboard-logs/"
@@ -137,10 +137,8 @@ def create_model():
     return model
 
 # charge un modèle à partir d'un fichier
-def load_model(filename, use_default_folder=True):
-    path = (SAVE_FOLDER + filename) if use_default_folder else filename
-
-    path = Path.cwd() / 'models' / filename # todo : faire ça proprement
+def load_model(filename):
+    path = Path.cwd() / MODELS_FOLDER / filename # todo : faire ça proprement
 
     if path.exists():
         return PPO.load(path, env=create_environment(evaluation=True))
@@ -155,8 +153,10 @@ def load_models(path, prefix):
     return None
 
 # sauvegarde un modèle dans path et le nomme de la manière suivante : "prefix_timestamp.zip"
-def save_model(model, prefix, folder = SAVE_FOLDER):
-    model.save(f"{folder}{prefix}_{time.strftime('%d-%H-%M-%S')}")
+def save_model(model, prefix, folder = MODELS_FOLDER):
+    fname = f"{prefix}_{time.strftime('%d-%H-%M-%S')}"
+    path = Path.cwd() / folder / fname
+    model.save(path)
 
 # entraîne le modèle donné dans un environnement d'entraînement pendant n steps
 def train_model_in_environment(model, timesteps=TIMESTEPS_PER_EPOCH, training_env=None, tb_run_name=None):
