@@ -58,7 +58,7 @@ def visualize_model(model_filename):
                 eval_env.envs[0].update_map()
 
             ctrl_ts = eval_env.get_attr("CTRL_TIMESTEP")[0]
-            sync(step, start_time, ctrl_ts * 2)
+            sync(step, start_time, ctrl_ts)
             step += 1
 
         print('épisode terminé', step)
