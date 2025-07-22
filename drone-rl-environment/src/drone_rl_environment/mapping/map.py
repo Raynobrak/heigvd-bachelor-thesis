@@ -1,9 +1,14 @@
 import numpy as np
 from PIL import Image
+from pathlib import Path
 
 START_POSITION_COLOR = (255,0,0)
 PATH_COLOR = (0,255,0)
 LAST_POSITION_COLOR = (0,0,255)
+
+MAP_SAVE_FOLDER = 'maps'
+
+#todo refactor map
 
 # Représente une carte en 3 dimensions
 # Permet de cartographier un trajet à partir de scans globaux
@@ -11,7 +16,6 @@ class Map:
     # Construit la carte. x,y et z doivent être spécifiés en coordonnées "monde" (mètres par exemple) et resolution_voxels_per_unit correspond à la sous-division de cette unité en unités plus petites.
     # Si x,y,z = 2,2,2 et que la résolution vaut 10, alors la carte contiendra 20^3 valeurs donc chaque mètre cube est divisé en voxels de 10*10*10 centimètres
     def __init__(self, xyz_size, origin_offset, resolution_voxels_per_unit):
-        print('carte créée')
         self.origin_offset = origin_offset # coordonnées du point 0,0 en mètres
         self.resolution_voxels_per_unit = resolution_voxels_per_unit
         self.voxel_size = np.array([1,1,1]) / self.resolution_voxels_per_unit
@@ -37,6 +41,7 @@ class Map:
         # on ajoute les coordonnées uniquement si x et y sont différents par rapport à la dernière position enregistrée (pour économiser un peu de mémoire en évitant de se retrouver avec une énorme liste)
         self.position_history.append(coords) 
     
+    # Retourne True si les coordonnées d'un voxel donné rentrent dans la matrice
     def is_voxel_within_map_bounds(self, coords):
         return (coords[0] > 0 and coords[0] < self.x_size and
                 coords[1] > 0 and coords[1] < self.y_size and
@@ -59,12 +64,9 @@ class Map:
                 global_point_position = p + sensor_position
                 voxel_coords = self.convert_position_to_voxel_coords(global_point_position)
                 
-                # si le point est dans les limites de la carte
+                # on met à jour la carte, à condition que le point soit dans les limites
                 if self.is_voxel_within_map_bounds(voxel_coords):
                     self.matrix[voxel_coords[0], voxel_coords[1], voxel_coords[2]] = 1
-                #else: 
-                    #print('p:', p, '\nsp:', sensor_position, '\ngp:', global_point_position, '\nvc:', voxel_coords)
-
     
     # "Applatit" la carte en 2 dimensions sur l'axe Z (vue d'en haut)
     # Permet d'obtenir une représentation en 2D pour visualiser sur une image p.ex.
@@ -72,22 +74,15 @@ class Map:
         flattened = self.matrix.sum(axis=2)
         return flattened
 
-    def save_2D_map_to_file(self, filename='map.png'):
+    # Sauvegarde l'image vers un fichier
+    def save_2D_map_to_file(self, suffix=None):
         print('Sauvegarde de l\'image en cours...')
         # créer une image grayscale basée sur la somme des valeurs le long de l'axe Z
         flattened = self.flatten_map_2D()
         map_2d = 255 * flattened / np.max(flattened)
-        #img = Image.fromarray(map_2d.astype(np.uint8), mode='L')
         img = Image.fromarray(map_2d.astype(np.uint8))
+
         # conversion en RGB pour ajouter le tracé (path) du scan
-
-        #print('position history')
-        #print(self.position_history)
-        #print('ph end')
-
-        for p in self.position_history:
-            print(p)
-
         img = img.convert('RGB')
         if len(self.position_history) >= 3:
             for i, coords in enumerate(self.position_history):                
@@ -96,6 +91,7 @@ class Map:
             img.putpixel((self.position_history[0][1], self.position_history[0][0]), START_POSITION_COLOR)
             img.putpixel((self.position_history[last][1], self.position_history[last][0]), LAST_POSITION_COLOR)
 
-        img.save(filename)
-        print('Image sauvegardée :', filename)
+        path = Path.cwd() / MAP_SAVE_FOLDER / ('map'+suffix+'.png')
+        img.save(path)
+        print('Image sauvegardée :', path)
 

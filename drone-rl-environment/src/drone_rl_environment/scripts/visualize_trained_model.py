@@ -45,7 +45,7 @@ def visualize_model(model_filename):
             step += 1
 
         print('Épisode terminé. Reward total :', round(total_reward,1))
-        eval_env.envs[0].save_map(filename='map-'+str(i)+'.png') # todo : sauvegarde dans un dossier fixe
+        eval_env.envs[0].save_map(suffix='-'+str(i)) # todo : sauvegarde dans un dossier fixe
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Visualise le modèle donné en paramètre dans un environnement 3D")

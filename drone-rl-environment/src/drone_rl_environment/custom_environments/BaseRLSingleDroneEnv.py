@@ -275,15 +275,12 @@ class BaseRLSingleDroneEnv(BaseAviary):
     # Surcharge de step() de BaseAviary
     # Légèrement adapté pour correspondre au fonctionnement de l'environnement
     def step(self, action):
-
         assert(self.CTRL_FREQ % self.action_freq == 0)
         
         pid_steps_per_control = int(self.CTRL_FREQ / self.action_freq)
 
         for _ in range(pid_steps_per_control):
             self.step_pid_only(action)
-
-        
         
         return self.step_observation_only()
 
@@ -351,11 +348,11 @@ class BaseRLSingleDroneEnv(BaseAviary):
                                                                   target_rpy_rates=target_rpy_rates)
         return np.array(np.clip(target_rpms[0], 0, self.MAX_RPM))
     
-    def save_map(self, filename):
+    def save_map(self, suffix):
         if not self.enable_mapping:
             raise('error : could not save map; mapping is disabled.')
         else:
-            self.map.save_2D_map_to_file(filename)
+            self.map.save_2D_map_to_file(suffix)
     
     # retourne True si le drone est en contact avec un obstacle, sinon False
     def check_for_collisions(self):
