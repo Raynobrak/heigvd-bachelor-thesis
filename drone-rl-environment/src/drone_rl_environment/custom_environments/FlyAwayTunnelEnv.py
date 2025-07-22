@@ -59,7 +59,8 @@ class FlyAwayTunnelEnv(FlyAwayEnv):
         hw = self.walls_width/2 # moitié de la largeur des murs
 
         if self.enable_random_tunnel_rotation:
-            self.current_tunnel_rotation = np.array([0,0,self.rng.uniform(0, 2*np.pi)]) # rotation aléatoire sur l'axe 'yaw' (horizontal) entre 0 et 2pi (0 et 360°)
+            self.tunnel_angle = self.rng.uniform(0, 2*np.pi)
+            self.current_tunnel_rotation = np.array([0,0,self.tunnel_angle]) # rotation aléatoire sur l'axe 'yaw' (horizontal) entre 0 et 2pi (0 et 360°)
         else: 
             self.current_tunnel_rotation = np.array([0,0,0])
 

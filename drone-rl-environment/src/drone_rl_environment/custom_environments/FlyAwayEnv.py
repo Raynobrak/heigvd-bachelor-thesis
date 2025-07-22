@@ -9,7 +9,7 @@ class FlyAwayEnv(BaseRLSingleDroneEnv):
         pass # no obstacles
 
     def compute_distance_reward(self, delta_distance):
-        MAX_DELTA = self.max_drone_velocity / DEFAULT_ACTION_FREQ
+        MAX_DELTA = self.max_drone_velocity / self.action_freq
         MAX_DISTANCE_REWARD_PER_SECOND = 200
         MAX_NEGATIVE_REWARD_PER_SECOND = 500
 
@@ -24,7 +24,7 @@ class FlyAwayEnv(BaseRLSingleDroneEnv):
             reward = -MAX_NEGATIVE_REWARD_PER_SECOND * (abs(x) ** 2)
 
         # on divise le reward par la fréquence de l'environnement pour normaliser
-        return reward / DEFAULT_ACTION_FREQ
+        return reward / self.action_freq
     
     def distance_from_starting_point(self):
         return np.linalg.norm(self.get_estimated_drone_pos() - self.INIT_XYZS[0,:])
