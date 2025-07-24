@@ -39,7 +39,7 @@ class FlyAwayEnv(BaseRLSingleDroneEnv):
     def _computeReward(self):
         reward = self.compute_distance_reward(self.compute_delta_distance())
 
-        DANGER_RADIUS = 0.2 # 20 cm danger radius #todo : constante ailleurs
+        DANGER_RADIUS = 0.2 # 20 cm danger radius
         min_dist = self.lidar_sensor.read_distances().min()
         if min_dist < DANGER_RADIUS:
             reward -= 500 * (1 - min_dist / DANGER_RADIUS) / self.CTRL_FREQ

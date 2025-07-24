@@ -216,15 +216,6 @@ class Simulation:
 
 
         # draw lidar points
-        '''
-        sensor_pos = self.drone.get_center_position()
-        lidar_distances = emulate_lidar(sensor_pos, self.obstacles)
-        points = lidar_data_to_points(lidar_distances, sensor_pos)
-        for p in points:
-            pygame.draw.circle(self.window, LIDAR_POINT_COLOR, p, LIDAR_POINT_RADIUS)
-
-        '''
-        
         slam_pos = self.map.get_estimated_position_in_window_px(window_size_px=WINDOW_SIZE, starting_position_px=STARTING_POS)
         print(self.drone.get_center_position(), slam_pos)
 

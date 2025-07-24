@@ -9,7 +9,6 @@ from breezyslam.sensors import *
 import roboviz as rv
 
 # todo : définir distance minimale de détection
-#def __init__(self, scan_size, scan_rate_hz, detection_angle_degrees, distance_no_detection_mm, detection_margin=0, offset_mm=0):
 class Lidar(Laser):
     def __init__(self):
         Laser.__init__(self, NB_LIDAR_ANGLES, SIMULATION_FPS, 360, 0, 0, 0)
@@ -48,7 +47,6 @@ class Map:
         return self.mapbytes
     
     def display(self):
-        print(self.test)
         m = self.get_map()
         x,y,theta = self.slam.getpos()
         if not self.viz.display(self.test.x, self.test.y, theta, m):
