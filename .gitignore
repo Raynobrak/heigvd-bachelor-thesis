@@ -13,3 +13,4 @@ drone-rl-environment/libraries/gym-pybullet-drones/
 /drone-rl-environment/ppo_drone_tensorboard
 /drone-rl-environment/tensorboard-logs
 /drone-rl-environment/src/drone_rl_environment/mapping/__pycache__
+/diagrams
